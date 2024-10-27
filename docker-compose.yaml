@@ -1,0 +1,297 @@
+name: codeclarity
+  
+services:
+  rabbitmq:
+    restart: always
+    image: rabbitmq:3.13.7-management-alpine
+    env_file:
+      - .env.amqp
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 500M
+  
+  db:
+    image: postgres:16.4-alpine
+    restart: always
+    # set shared memory limit when using docker-compose
+    shm_size: 128mb
+    # or set shared memory limit when deploy via swarm stack
+    #volumes:
+    #  - type: tmpfs
+    #    target: /dev/shm
+    #    tmpfs:
+    #      size: 134217728 # 128*2^20 bytes = 128Mb
+    volumes:
+      - ./docker-entrypoint-initdb:/docker-entrypoint-initdb.d/
+      - ../../dump:/dump
+      - db_data_container:/var/lib/postgresql/data/pgdata
+    ports:
+      - 5432:5432
+    env_file:
+      - .env.database
+
+  pg_bouncer:
+    image: bitnami/pgbouncer
+    restart: always
+    depends_on:
+      - db
+    env_file:
+      - .env.database
+    ports:
+      - 6432:6432
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+    command: [ "php", "-d", "memory_limit=-1", "-d", "post_max_size=500M", "-d", "upload_max_filesize=500M", "-S", "0.0.0.0:8080", "-t", "/var/www/html" ]
+
+  api:
+    image: ceherzog/api
+    env_file:
+      - .env.api
+      - .env.mail
+      - .env.amqp
+      - .env.database
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
+      pg_bouncer:
+        condition: service_started
+      adminer:
+        condition: service_started
+    volumes:
+      - ./jwt:/home/codeclarity/app/jwt
+      - .env.api:/home/codeclarity/app/env/.env.prod
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 500M
+
+  frontend:
+    image: ceherzog/frontend
+    env_file:
+      - .env.frontend
+    restart: always
+    ports:
+      # HTTP
+      - target: 80
+        published: ${HTTP_PORT:-80}
+        protocol: tcp
+      # HTTPS
+      - target: 443
+        published: ${HTTPS_PORT:-443}
+        protocol: tcp
+      # HTTP/3
+      - target: 443
+        published: ${HTTP3_PORT:-443}
+        protocol: udp
+      # Rabbitmq
+      - target: 15672
+        published: 15672
+        protocol: tcp
+      # API
+      - target: 3000
+        published: 3000
+        protocol: tcp
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      # Uncomment the following line to use your own certificates
+      # - ./certs:/etc/caddy/certs:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 500M
+
+  service-dispatcher:
+    image: ceherzog/service-dispatcher
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
+      pg_bouncer:
+        condition: service_started
+      adminer:
+        condition: service_started
+    env_file:
+      - .env.amqp
+      - .env.codeclarity
+      - .env.database
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 500M
+        reservations:
+          cpus: '0.25'
+          memory: 250M
+
+  service-downloader:
+    image: ceherzog/service-downloader
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
+      pg_bouncer:
+        condition: service_started
+      adminer:
+        condition: service_started
+    env_file:
+      - .env.amqp
+      - .env.codeclarity
+      - .env.database
+    volumes:
+      - projects:/private
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 500M
+        reservations:
+          cpus: '0.25'
+          memory: 250M
+
+  plugin-js-sbom:
+    image: ceherzog/plugin-js-sbom
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
+      pg_bouncer:
+        condition: service_started
+      adminer:
+        condition: service_started
+    env_file:
+      - .env.amqp
+      - .env.codeclarity
+      - .env.database
+    volumes:
+      - projects:/private
+    deploy:
+      mode: replicated
+      replicas: 6
+      resources:
+        limits:
+          cpus: '1'
+          memory: 500M
+        reservations:
+          cpus: '0.5'
+          memory: 250M
+
+  plugin-js-license:
+    image: ceherzog/plugin-js-license
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
+      pg_bouncer:
+        condition: service_started
+      adminer:
+        condition: service_started
+    env_file:
+      - .env.amqp
+      - .env.codeclarity
+      - .env.database
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 500M
+        reservations:
+          cpus: '0.5'
+          memory: 250M
+
+  plugin-js-patching:
+    image: ceherzog/plugin-js-patching
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
+      pg_bouncer:
+        condition: service_started
+      adminer:
+        condition: service_started
+    env_file:
+      - .env.amqp
+      - .env.codeclarity
+      - .env.database
+    volumes:
+      - projects:/private
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+
+  plugin-js-vuln-finder:
+    image: ceherzog/plugin-js-vuln-finder
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
+      pg_bouncer:
+        condition: service_started
+      adminer:
+        condition: service_started
+    env_file:
+      - .env.amqp
+      - .env.codeclarity
+      - .env.database
+    volumes:
+      - projects:/private
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+  results_db_data_container:
+  results_db_apps_data_container:
+  db_data_container:
+
+  projects:

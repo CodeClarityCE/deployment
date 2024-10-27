@@ -1,0 +1,14 @@
+services:
+  knowledge:
+    image: ceherzog/service-knowledge
+    restart: always
+    env_file:
+      - .env.codeclarity
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 3G
+        reservations:
+          cpus: '1'
+          memory: 2G

@@ -1,0 +1,39 @@
+{$SERVER_NAME}{$SERVER_NAME_EXTRA} {
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy api:3000
+	}
+
+	log
+
+	# test
+	{$CADDY_SERVER_EXTRA_DIRECTIVES}
+
+	root * /srv/app/dist
+
+	rewrite /results* /
+	rewrite /projects* /
+	rewrite /analyses* /
+	rewrite /login* /
+	rewrite /help* /
+	rewrite /orgs* /
+	rewrite /org* /
+	rewrite /signup* /
+	rewrite /password_reset_request* /
+	rewrite /email_action* /
+	rewrite /settings* /
+	rewrite /auth* /
+	rewrite /404* /
+
+	encode zstd gzip
+	file_server
+}
+
+{$SERVER_NAME}:15672 {
+	reverse_proxy rabbitmq:15672
+}
+
+{$SERVER_NAME}:8529 {
+	log
+	reverse_proxy results_db:8529
+}
