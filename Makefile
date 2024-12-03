@@ -1,5 +1,5 @@
 # Executables (local)
-DOCKER_COMP = docker compose
+DOCKER_COMP = docker compose -f docker-compose.yaml
 
 # Misc
 .DEFAULT_GOAL = help
@@ -18,13 +18,13 @@ help: ## Outputs this help screen
 
 ## —— Docker 🐳 ————————————————————————————————————————————————————————————————
 up: ## Starts the Docker images
-	@$(DOCKER_COMP) -f docker-compose.yaml up -d
+	@$(DOCKER_COMP) up -d
 
 down: ## Stops the Docker images
-	@$(DOCKER_COMP) -f docker-compose.yaml down
+	@$(DOCKER_COMP) down
 
 logs: ## Display logs
-	@$(DOCKER_COMP) -f docker-compose.yaml logs --tail=0 --follow
+	@$(DOCKER_COMP) logs --tail=0 --follow
 
 pull: ## Pull images from docker hub
 	@$(DOCKER_COMP) pull
