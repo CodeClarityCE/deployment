@@ -45,3 +45,13 @@ knowledge-update: ## Create knowledge
 
 knowledge-setup: ## Setup knowledge
 	@$(DOCKER_COMP) -f docker-compose.yaml -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action setup
+
+## —— Commands to dump and restore database 💾 ———————————————————————————————————————————————————————————————
+download-dumps: ## Downloads the database dump
+	@sh scripts/download-dumps.sh
+
+restore-database: ## Restores the database
+	@cd scripts && sh restore-db.sh codeclarity
+	@cd scripts && sh restore-db.sh knowledge
+	@cd scripts && sh restore-db.sh config
+	@cd scripts && sh restore-db.sh plugins

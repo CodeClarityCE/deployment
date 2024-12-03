@@ -1,4 +1,5 @@
-dump
 jwt
 certs
 .DS_Store
+dump/*
+!dump/.gitkeep
