@@ -4,6 +4,7 @@ services:
     restart: always
     env_file:
       - .env.codeclarity
+      - .env.knowledge
     deploy:
       resources:
         limits:

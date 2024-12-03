@@ -41,7 +41,7 @@ setup-jwt: ## Setup JWT
 	@openssl ec -in jwt/private.pem -pubout -out jwt/public.pem
 
 knowledge-update: ## Create knowledge
-	@$(DOCKER_COMP) -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action update
+	@$(DOCKER_COMP) -f docker-compose.yaml -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action update
 
 knowledge-setup: ## Setup knowledge
-	@$(DOCKER_COMP) -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action setup
+	@$(DOCKER_COMP) -f docker-compose.yaml -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action setup
