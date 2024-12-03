@@ -115,6 +115,7 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+      - ./config/Caddyfile:/etc/caddy/Caddyfile:ro
       # Uncomment the following line to use your own certificates
       # - ./certs:/etc/caddy/certs:ro
     deploy:
