@@ -3,7 +3,7 @@ name: codeclarity
 services:
   rabbitmq:
     restart: always
-    image: rabbitmq:3.13.7-management-alpine
+    image: rabbitmq:4.0.4-management-alpine
     env_file:
       - .env.amqp
     healthcheck:
@@ -21,7 +21,7 @@ services:
           memory: 500M
   
   db:
-    image: postgres:16.4-alpine
+    image: postgres:17.2-alpine
     restart: always
     # set shared memory limit when using docker-compose
     shm_size: 128mb
@@ -198,7 +198,7 @@ services:
       - projects:/private
     deploy:
       mode: replicated
-      replicas: 6
+      replicas: 1
       resources:
         limits:
           cpus: '1'
