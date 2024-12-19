@@ -1,5 +1,5 @@
 name: codeclarity
-  
+
 services:
   rabbitmq:
     restart: always
@@ -19,7 +19,7 @@ services:
         reservations:
           cpus: '1'
           memory: 500M
-  
+
   db:
     image: postgres:17.2-alpine
     restart: always
@@ -154,6 +154,33 @@ services:
 
   service-downloader:
     image: codeclarityce/service-downloader:0.0.1-alpha
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
+      pg_bouncer:
+        condition: service_started
+      adminer:
+        condition: service_started
+    env_file:
+      - .env.amqp
+      - .env.codeclarity
+      - .env.database
+    volumes:
+      - projects:/private
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 500M
+        reservations:
+          cpus: '0.25'
+          memory: 250M
+
+  service-follower:
+    image: codeclarityce/service-package-follower:0.0.1-alpha
     restart: always
     depends_on:
       rabbitmq:
