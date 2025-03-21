@@ -41,7 +41,7 @@ services:
       - .env.database
 
   pg_bouncer:
-    image: bitnami/pgbouncer
+    image: bitnami/pgbouncer:1.24.0
     restart: always
     depends_on:
       - db
@@ -51,14 +51,14 @@ services:
       - 6432:6432
 
   adminer:
-    image: adminer
+    image: adminer:5.0.6
     restart: always
     ports:
       - 8080:8080
     command: [ "php", "-d", "memory_limit=-1", "-d", "post_max_size=500M", "-d", "upload_max_filesize=500M", "-S", "0.0.0.0:8080", "-t", "/var/www/html" ]
 
   api:
-    image: codeclarityce/api:0.0.7-alpha
+    image: codeclarityce/api:0.0.8-alpha
     env_file:
       - .env.api
       - .env.mail
@@ -87,7 +87,7 @@ services:
           memory: 500M
 
   frontend:
-    image: codeclarityce/frontend:0.0.4-alpha
+    image: codeclarityce/frontend:0.0.5-alpha
     env_file:
       - .env.frontend
     restart: always
@@ -207,7 +207,7 @@ services:
           memory: 250M
 
   plugin-js-sbom:
-    image: codeclarityce/plugin-js-sbom:0.0.2-alpha
+    image: codeclarityce/plugin-js-sbom:0.0.4-alpha
     restart: always
     depends_on:
       rabbitmq:
