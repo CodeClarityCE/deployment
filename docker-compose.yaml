@@ -58,7 +58,7 @@ services:
     command: [ "php", "-d", "memory_limit=-1", "-d", "post_max_size=500M", "-d", "upload_max_filesize=500M", "-S", "0.0.0.0:8080", "-t", "/var/www/html" ]
 
   api:
-    image: codeclarityce/api:0.0.8-alpha
+    image: codeclarityce/api:0.0.9-alpha
     env_file:
       - .env.api
       - .env.mail
@@ -87,7 +87,7 @@ services:
           memory: 500M
 
   frontend:
-    image: codeclarityce/frontend:0.0.5-alpha
+    image: codeclarityce/frontend:0.0.6-alpha
     env_file:
       - .env.frontend
     restart: always
@@ -128,7 +128,7 @@ services:
           memory: 500M
 
   service-dispatcher:
-    image: codeclarityce/service-dispatcher:0.0.2-alpha
+    image: codeclarityce/service-dispatcher:0.0.3-alpha
     restart: always
     depends_on:
       rabbitmq:
@@ -153,7 +153,7 @@ services:
           memory: 250M
 
   service-downloader:
-    image: codeclarityce/service-downloader:0.0.2-alpha
+    image: codeclarityce/service-downloader:0.0.3-alpha
     restart: always
     depends_on:
       rabbitmq:
@@ -180,7 +180,7 @@ services:
           memory: 250M
 
   service-follower:
-    image: codeclarityce/service-package-follower:0.0.2-alpha
+    image: codeclarityce/service-package-follower:0.0.3-alpha
     restart: always
     depends_on:
       rabbitmq:
@@ -207,7 +207,7 @@ services:
           memory: 500M
 
   plugin-js-sbom:
-    image: codeclarityce/plugin-js-sbom:0.0.4-alpha
+    image: codeclarityce/plugin-js-sbom:0.0.5-alpha
     restart: always
     depends_on:
       rabbitmq:
@@ -236,7 +236,7 @@ services:
           memory: 250M
 
   plugin-js-license:
-    image: codeclarityce/plugin-js-license:0.0.2-alpha
+    image: codeclarityce/plugin-js-license:0.0.3-alpha
     restart: always
     depends_on:
       rabbitmq:
@@ -261,7 +261,7 @@ services:
           memory: 250M
 
   plugin-js-patching:
-    image: codeclarityce/plugin-js-patching:0.0.2-alpha
+    image: codeclarityce/plugin-js-patching:0.0.3-alpha
     restart: always
     depends_on:
       rabbitmq:
@@ -288,7 +288,7 @@ services:
           memory: 2G
 
   plugin-js-vuln-finder:
-    image: codeclarityce/plugin-js-vuln-finder:0.0.2-alpha
+    image: codeclarityce/plugin-js-vuln-finder:0.0.3-alpha
     restart: always
     depends_on:
       rabbitmq:
