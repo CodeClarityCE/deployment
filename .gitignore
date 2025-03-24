@@ -3,3 +3,4 @@ certs
 .DS_Store
 dump/*
 !dump/.gitkeep
+services.img
