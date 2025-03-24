@@ -29,6 +29,12 @@ logs: ## Display logs
 pull: ## Pull images from docker hub
 	@$(DOCKER_COMP) pull
 
+save: ## Save images on disk
+	@sh scripts/image-save.sh
+
+load: ## Load saved images
+	@docker load < services.img
+
 setup: setup-tls setup-jwt knowledge-setup ## Setup tls and jwt
 
 setup-tls: ## Setup TLS
