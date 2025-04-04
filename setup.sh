@@ -65,7 +65,7 @@ sh scripts/download-dumps.sh
 # Create Postgre databases
 docker compose -f docker-compose.yaml -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action setup
 # Restore database content from dumps
-for db in "codeclarity" "knowledge" "config" "plugins"; do
+for db in "codeclarity" "knowledge" "config"; do
     docker compose -f docker-compose.yaml exec db sh -c "pg_restore -l /dump/$db.dump > /dump/$db.list && pg_restore -U postgres -d $db -L /dump/$db.list /dump/$db.dump"
 done
 # Restart
