@@ -60,4 +60,3 @@ restore-database: ## Restores the database
 	@cd scripts && sh restore-db.sh codeclarity
 	@cd scripts && sh restore-db.sh knowledge
 	@cd scripts && sh restore-db.sh config
-	@cd scripts && sh restore-db.sh plugins
