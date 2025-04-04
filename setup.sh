@@ -62,15 +62,14 @@ fi
 docker compose -f docker-compose.yaml up -d
 # Download dumps
 sh scripts/download-dumps.sh
-
+# Create Postgre databases
 docker compose -f docker-compose.yaml -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action setup
-
+# Restore database content from dumps
 cd scripts && sh restore-db.sh codeclarity
 cd scripts && sh restore-db.sh knowledge
 cd scripts && sh restore-db.sh config
 cd scripts && sh restore-db.sh plugins
-
-docker compose -f docker-compose.yaml down
-docker compose -f docker-compose.yaml up -d
+# Restart
+docker compose -f docker-compose.yaml restart
 
 echo "Installation successful, you can now visit: https://$domain_name:443"
