@@ -19,7 +19,7 @@ fi
 echo "All required commands are installed."
 
 if [ -f ".git" ] || [ -d ".git" ]; then
-   echo ".git found. Skipping repository clone."
+    echo ".git found. Skipping repository clone."
 else
     git clone git@github.com:CodeClarityCE/deployment.git
     cd deployment
@@ -65,10 +65,9 @@ sh scripts/download-dumps.sh
 # Create Postgre databases
 docker compose -f docker-compose.yaml -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action setup
 # Restore database content from dumps
-cd scripts && sh restore-db.sh codeclarity
-cd scripts && sh restore-db.sh knowledge
-cd scripts && sh restore-db.sh config
-cd scripts && sh restore-db.sh plugins
+for db in "codeclarity" "knowledge" "config" "plugins"; do
+    docker compose -f docker-compose.yaml exec db sh -c "pg_restore -l /dump/$db.dump > /dump/$db.list && pg_restore -U postgres -d $db -L /dump/$db.list /dump/$db.dump"
+done
 # Restart
 docker compose -f docker-compose.yaml restart
 
