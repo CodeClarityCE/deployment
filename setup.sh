@@ -58,8 +58,8 @@ else
     echo "Running local installation."
 fi
 
-# Start containers
-docker compose -f docker-compose.yaml up -d
+# Start DB container
+docker compose -f docker-compose.yaml up db -d
 # Download dumps
 sh scripts/download-dumps.sh
 # Create Postgre databases
@@ -68,7 +68,7 @@ docker compose -f docker-compose.yaml -f docker-compose.knowledge.yaml run --rm 
 for db in "codeclarity" "knowledge" "config"; do
     docker compose -f docker-compose.yaml exec db sh -c "pg_restore -l /dump/$db.dump > /dump/$db.list && pg_restore -U postgres -d $db -L /dump/$db.list /dump/$db.dump"
 done
-# Restart
-docker compose -f docker-compose.yaml restart
+# Start all containers
+docker compose -f docker-compose.yaml up -d
 
 echo "Installation successful, you can now visit: https://$domain_name:443"
