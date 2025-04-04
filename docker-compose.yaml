@@ -3,7 +3,7 @@ name: codeclarity
 services:
   rabbitmq:
     restart: always
-    image: rabbitmq:4.0.7-management-alpine
+    image: rabbitmq:4.0.8-management-alpine
     env_file:
       - .env.amqp
     healthcheck:
@@ -51,14 +51,14 @@ services:
       - 6432:6432
 
   adminer:
-    image: adminer:5.0.6
+    image: adminer:5.1.0
     restart: always
     ports:
       - 8080:8080
     command: [ "php", "-d", "memory_limit=-1", "-d", "post_max_size=500M", "-d", "upload_max_filesize=500M", "-S", "0.0.0.0:8080", "-t", "/var/www/html" ]
 
   api:
-    image: codeclarityce/api:0.0.9-alpha
+    image: codeclarityce/api:0.0.11-alpha
     env_file:
       - .env.api
       - .env.mail
@@ -87,7 +87,7 @@ services:
           memory: 500M
 
   frontend:
-    image: codeclarityce/frontend:0.0.6-alpha
+    image: codeclarityce/frontend:0.0.7-alpha
     env_file:
       - .env.frontend
     restart: always
@@ -173,11 +173,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 500M
+          cpus: '2'
+          memory: 1G
         reservations:
-          cpus: '0.25'
-          memory: 250M
+          cpus: '1'
+          memory: 500M
 
   service-follower:
     image: codeclarityce/service-package-follower:0.0.3-alpha
