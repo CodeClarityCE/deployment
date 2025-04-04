@@ -21,7 +21,7 @@ echo "All required commands are installed."
 if [ -f ".git" ] || [ -d ".git" ]; then
     echo ".git found. Skipping repository clone."
 else
-    git clone git@github.com:CodeClarityCE/deployment.git
+    git clone https://github.com/CodeClarityCE/deployment.git
     cd deployment
 fi
 
