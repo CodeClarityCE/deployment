@@ -18,13 +18,22 @@ fi
 
 echo "All required commands are installed."
 
-git clone git@github.com:CodeClarityCE/deployment.git
-cd deployment
+if [ -f ".git" ] || [ -d ".git" ]; then
+   echo ".git found. Skipping repository clone."
+else
+    git clone git@github.com:CodeClarityCE/deployment.git
+    cd deployment
+fi
 
 # openssl needs to be installed
-mkdir -p jwt
-openssl ecparam -name secp521r1 -genkey -noout -out jwt/private.pem
-openssl ec -in jwt/private.pem -pubout -out jwt/public.pem
+if [ ! -f jwt/private.pem ] && [ ! -f jwt/public.pem ]; then
+    echo "Generating certificates"
+    mkdir -p jwt
+    openssl ecparam -name secp521r1 -genkey -noout -out jwt/private.pem
+    openssl ec -in jwt/private.pem -pubout -out jwt/public.pem
+else
+    echo "Certificates found. Skipping certificate generation."
+fi
 
 read -p "Is this installation running on localhost (Y/n)? " local_install
 
