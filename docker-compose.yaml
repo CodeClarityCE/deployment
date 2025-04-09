@@ -288,7 +288,7 @@ services:
           memory: 2G
 
   plugin-js-vuln-finder:
-    image: codeclarityce/plugin-js-vuln-finder:0.0.4-alpha
+    image: codeclarityce/plugin-js-vuln-finder:0.0.5-alpha
     restart: always
     depends_on:
       rabbitmq:
