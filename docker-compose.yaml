@@ -58,7 +58,7 @@ services:
     command: [ "php", "-d", "memory_limit=-1", "-d", "post_max_size=500M", "-d", "upload_max_filesize=500M", "-S", "0.0.0.0:8080", "-t", "/var/www/html" ]
 
   api:
-    image: codeclarityce/api:0.0.12-alpha
+    image: codeclarityce/api:0.0.13-alpha
     env_file:
       - .env.api
       - .env.mail
