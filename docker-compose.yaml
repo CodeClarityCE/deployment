@@ -87,7 +87,7 @@ services:
           memory: 500M
 
   frontend:
-    image: codeclarityce/frontend:0.0.8-alpha
+    image: codeclarityce/frontend:0.0.9-alpha
     env_file:
       - .env.frontend
     restart: always
