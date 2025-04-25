@@ -3,7 +3,7 @@ name: codeclarity
 services:
   rabbitmq:
     restart: always
-    image: rabbitmq:4.0.8-management-alpine
+    image: rabbitmq:4.1.0-management-alpine
     env_file:
       - .env.amqp
     healthcheck:
@@ -51,14 +51,14 @@ services:
   #     - 6432:6432
 
   adminer:
-    image: adminer:5.1.0
+    image: adminer:5.2.1
     restart: always
     ports:
       - 8080:8080
     command: [ "php", "-d", "memory_limit=-1", "-d", "post_max_size=500M", "-d", "upload_max_filesize=500M", "-S", "0.0.0.0:8080", "-t", "/var/www/html" ]
 
   api:
-    image: codeclarityce/api:0.0.13-alpha
+    image: codeclarityce/api
     env_file:
       - .env.api
       - .env.mail
@@ -87,7 +87,7 @@ services:
           memory: 500M
 
   frontend:
-    image: codeclarityce/frontend:0.0.10-alpha
+    image: codeclarityce/frontend
     env_file:
       - .env.frontend
     restart: always
@@ -128,7 +128,7 @@ services:
           memory: 500M
 
   service-dispatcher:
-    image: codeclarityce/service-dispatcher:0.0.5-alpha
+    image: codeclarityce/service-dispatcher
     restart: always
     depends_on:
       rabbitmq:
@@ -153,7 +153,7 @@ services:
           memory: 250M
 
   service-downloader:
-    image: codeclarityce/service-downloader:0.0.4-alpha
+    image: codeclarityce/service-downloader
     restart: always
     depends_on:
       rabbitmq:
@@ -180,7 +180,7 @@ services:
           memory: 500M
 
   service-follower:
-    image: codeclarityce/service-package-follower:0.0.4-alpha
+    image: codeclarityce/service-package-follower
     restart: always
     depends_on:
       rabbitmq:
@@ -207,7 +207,7 @@ services:
           memory: 500M
 
   plugin-js-sbom:
-    image: codeclarityce/plugin-js-sbom:0.0.6-alpha
+    image: codeclarityce/plugin-js-sbom
     restart: always
     depends_on:
       rabbitmq:
@@ -236,7 +236,7 @@ services:
           memory: 250M
 
   plugin-js-license:
-    image: codeclarityce/plugin-js-license:0.0.4-alpha
+    image: codeclarityce/plugin-js-license
     restart: always
     depends_on:
       rabbitmq:
@@ -260,8 +260,35 @@ services:
           cpus: '0.5'
           memory: 250M
 
-  plugin-js-patching:
-    image: codeclarityce/plugin-js-patching:0.0.4-alpha
+  # plugin-js-patching:
+  #   image: codeclarityce/plugin-js-patching
+  #   restart: always
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #     db:
+  #       condition: service_started
+  #     # pg_bouncer:
+  #     #   condition: service_started
+  #     adminer:
+  #       condition: service_started
+  #   env_file:
+  #     - .env.amqp
+  #     - .env.codeclarity
+  #     - .env.database
+  #   volumes:
+  #     - projects:/private
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '4'
+  #         memory: 4G
+  #       reservations:
+  #         cpus: '2'
+  #         memory: 2G
+
+  plugin-js-vuln-finder:
+    image: codeclarityce/plugin-js-vuln-finder
     restart: always
     depends_on:
       rabbitmq:
@@ -287,8 +314,9 @@ services:
           cpus: '2'
           memory: 2G
 
-  plugin-js-vuln-finder:
-    image: codeclarityce/plugin-js-vuln-finder:0.0.5-alpha
+  plugin-codeql:
+    image: codeclarityce/plugin-codeql
+    platform: linux/amd64 # CodeQL works only on x86 platforms
     restart: always
     depends_on:
       rabbitmq:
