@@ -40,15 +40,15 @@ services:
     env_file:
       - .env.database
 
-  # pg_bouncer:
-  #   image: bitnami/pgbouncer:1.24.0
-  #   restart: always
-  #   depends_on:
-  #     - db
-  #   env_file:
-  #     - .env.database
-  #   ports:
-  #     - 6432:6432
+  pg_bouncer:
+    image: bitnami/pgbouncer:1.24.0
+    restart: always
+    depends_on:
+      - db
+    env_file:
+      - .env.database
+    ports:
+      - 6432:6432
 
   adminer:
     image: adminer:5.2.1
