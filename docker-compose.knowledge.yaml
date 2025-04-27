@@ -1,6 +1,6 @@
 services:
   knowledge:
-    image: codeclarityce/service-knowledge:0.0.6-alpha
+    image: codeclarityce/service-knowledge:0.0.7-alpha
     restart: always
     env_file:
       - .env.codeclarity
