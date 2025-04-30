@@ -33,7 +33,7 @@
 	reverse_proxy rabbitmq:15672
 }
 
-{$SERVER_NAME}:8529 {
+{$SERVER_NAME}:8080 {
 	log
-	reverse_proxy results_db:8529
+	reverse_proxy adminer:8080
 }
