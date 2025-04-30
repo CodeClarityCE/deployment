@@ -4,8 +4,11 @@ services:
   rabbitmq:
     restart: always
     image: rabbitmq:4.1.0-management-alpine
+    hostname: "codeclarity"
     env_file:
       - .env.amqp
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq/
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 10s
@@ -342,6 +345,8 @@ services:
           memory: 2G
 
 volumes:
+  rabbitmq_data:
+
   caddy_data:
   caddy_config:
 
