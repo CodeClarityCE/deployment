@@ -35,8 +35,6 @@ services:
       - ./docker-entrypoint-initdb:/docker-entrypoint-initdb.d/
       - ./dump:/dump
       - db_data_container:/var/lib/postgresql/data/pgdata
-    ports:
-      - 5432:5432
     env_file:
       - .env.database
 
@@ -47,14 +45,10 @@ services:
       - db
     env_file:
       - .env.database
-    ports:
-      - 6432:6432
 
   adminer:
     image: adminer:5.2.1
     restart: always
-    ports:
-      - 8080:8080
     command: [ "php", "-d", "memory_limit=-1", "-d", "post_max_size=500M", "-d", "upload_max_filesize=500M", "-S", "0.0.0.0:8080", "-t", "/var/www/html" ]
 
   api:
