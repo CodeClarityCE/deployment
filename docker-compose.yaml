@@ -77,6 +77,7 @@ services:
     volumes:
       - ./jwt:/home/codeclarity/app/jwt
       - .env.api:/home/codeclarity/app/env/.env.prod
+      - projects:/home/codeclarity/private
     deploy:
       resources:
         limits:
