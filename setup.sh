@@ -41,16 +41,16 @@ domain_name="localhost"
 if [[ "$local_install" == "n" || "$local_install" == "N" ]]; then
     read -p "Enter the domain name (localtest.io): " domain_name
     echo "Running installation for domain: $domain_name"
-    sed -i '' "s/WEB_HOST=https:\/\/localhost/WEB_HOST=https:\/\/$domain_name/" .env.api
-    sed -i '' "s/SERVER_NAME=localhost/SERVER_NAME=$domain_name/" .env.frontend
+    sed -i.bak "s/WEB_HOST=https:\/\/localhost/WEB_HOST=https:\/\/$domain_name/" .env.api
+    sed -i.bak "s/SERVER_NAME=localhost/SERVER_NAME=$domain_name/" .env.frontend
     read -p "Do you want Caddy to generate certificates (Y/n)? " caddy_generate_certs
 
     if [[ "$caddy_generate_certs" == "n" || "$caddy_generate_certs" == "N" ]]; then
         echo "Generating self-signed certificates..."
         mkdir -p certs
         openssl req -x509 -newkey rsa:4096 -keyout certs/tls.key -out certs/tls.pem -days 365 -nodes -subj "/CN=$domain_name"
-        sed -i '' 's/# - .\/certs:\/etc\/caddy\/certs:ro/- .\/certs:\/etc\/caddy\/certs:ro/' docker-compose.yaml
-        sed -i '' 's/# CADDY_SERVER_EXTRA_DIRECTIVES=/CADDY_SERVER_EXTRA_DIRECTIVES=/' .env.frontend
+        sed -i.bak 's/# - .\/certs:\/etc\/caddy\/certs:ro/- .\/certs:\/etc\/caddy\/certs:ro/' docker-compose.yaml
+        sed -i.bak 's/# CADDY_SERVER_EXTRA_DIRECTIVES=/CADDY_SERVER_EXTRA_DIRECTIVES=/' .env.frontend
     else
         echo "Letting Caddy generate certificates..."
     fi
