@@ -58,10 +58,10 @@ else
     echo "Running local installation."
 fi
 
+# Download dumps
+bash scripts/download-dumps.sh
 # Start DB container
 docker compose -f docker-compose.yaml up db -d
-# Download dumps
-sh scripts/download-dumps.sh
 # Create Postgre databases
 docker compose -f docker-compose.yaml -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action setup
 # Restore database content from dumps
