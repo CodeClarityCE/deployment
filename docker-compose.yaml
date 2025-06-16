@@ -3,7 +3,7 @@ name: codeclarity
 services:
   rabbitmq:
     restart: always
-    image: rabbitmq:4.1.0-management-alpine
+    image: rabbitmq:4.1.1-management-alpine
     hostname: "codeclarity"
     env_file:
       - .env.amqp
@@ -50,7 +50,7 @@ services:
       - .env.database
 
   adminer:
-    image: adminer:5.2.1
+    image: adminer:5.3.0
     restart: always
     command: [ "php", "-d", "memory_limit=-1", "-d", "post_max_size=500M", "-d", "upload_max_filesize=500M", "-S", "0.0.0.0:8080", "-t", "/var/www/html" ]
 
