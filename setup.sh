@@ -35,6 +35,12 @@ else
     echo "Certificates found. Skipping certificate generation."
 fi
 
+if [[ "$OSTYPE" == "linux"* ]]; then
+chmod 711 jwt
+chmod 744 jwt/*
+echo "Read and write permissions added to the folders that will be mounted as volumes."
+fi
+
 read -p "Is this installation running on localhost (Y/n)? " local_install
 
 domain_name="localhost"
