@@ -3,8 +3,6 @@
   <source media="(prefers-color-scheme: light)" srcset="https://github.com/CodeClarityCE/identity/blob/main/logo/vectorized/logo_name_black.svg">
   <img alt="codeclarity-logo" src="https://github.com/CodeClarityCE/identity/blob/main/logo/vectorized/logo_name_black.svg">
 </picture>
-<br>
-<br>
 
 Secure your software empower your team.
 
@@ -19,11 +17,7 @@ Integrate CodeClarity into your CI/CD (e.g., GitHub Actions, Bash) to block vuln
 
 Create custom analysis pipelines by linking plugins. Currently, there are three in-house plugins (SBOM builder, vulnerability finder, license finder) and one external (CodeQL), with more coming soon.
 
-<br>
-
 ![CodeClarity! Secure your software empower your team!](https://github.com/CodeClarityCE/identity/blob/main/illustration/rasterized/demo_illu.png)
-
-<br>
 
 <details open="open">
 <summary>Table of Contents</summary>
@@ -32,13 +26,11 @@ Create custom analysis pipelines by linking plugins. Currently, there are three 
 - [License](#license)
 - [Requirements](#requirements)
 - [Setup Instructions](#setup-instructions)
-  - [1. Download and Execute the Setup Script](#1-download-and-execute-the-setup-script)
-  - [2. Follow the Installation](#2-follow-the-installation)
-    - [1. Installing on Localhost](#1-installing-on-localhost)
+  - [1. Download and Run the Setup Script](#1-download-and-run-the-setup-script)
     - [2. Installing on a specific domain name](#2-installing-on-a-specific-domain-name)
-  - [3. Update DB (Optional)](#3-update-db-optional)
+  - [3. Update the Knowledge Database (Optional)](#3-update-the-knowledge-database-optional)
   - [4. Maintaining the Platform](#4-maintaining-the-platform)
-- [Start using the platform](#start-using-the-platform)
+- [Start Using the Platform](#start-using-the-platform)
 - [Contributing](#contributing)
 - [Reporting Issues](#reporting-issues)
 
@@ -47,61 +39,69 @@ Create custom analysis pipelines by linking plugins. Currently, there are three 
 ## Overview
 
 This repository contains all the configuration files needed to deploy CodeClarity. It simplifies the setup process, allowing you to quickly get the platform running.
+
 ## License
 
 This project is licensed under the AGPL-3.0-or-later license.  You can find the full license details in the [LICENSE](./LICENSE) file.
 
 ## Requirements
 
-Before you begin, ensure you have the following installed on your system:
+Before you begin, make sure your system meets the following requirements:
 
-*   **curl:** Used for downloading the setup script and dumps.
-*   **openssl:** Required for generating certificates.
-*   **Docker:**  A containerization platform.  [Installation instructions](https://docs.docker.com/engine/install/) are available on the Docker website.
-*   **Docker Compose:** A tool for defining and running multi-container Docker applications. [Installation instructions](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-compose-on-ubuntu-20-04) can be found here.
-*   **make:** (Optional) Used for automating certain build and deployment tasks.
+- **curl**: For downloading the setup script and database dumps. [Install instructions](https://curl.se/download.html)
+- **git**: Required for cloning the deployment repository and updating the platform. [Install instructions](https://git-scm.com/downloads)
+- **openssl**: Required for generating SSL certificates. [Install instructions](https://www.openssl.org/source/)
+- **Docker & Docker Compose**: Containerization platform and orchestration tool for running CodeClarity. [Docker install](https://docs.docker.com/engine/install/) | [Compose install](https://docs.docker.com/compose/install/)
+- **make** (optional): Simplifies maintenance and update tasks. [Install instructions](https://www.gnu.org/software/make/)
+
+> [!TIP]
+> If you're new to Docker, check out the <a href="https://docs.docker.com/get-started/" target="_blank">Docker Get Started guide</a> for a quick introduction.
 
 ## Setup Instructions
 
-### 1. Download and Execute the Setup Script
+### 1. Download and Run the Setup Script
 
-This script automates the cloning of the deployment repository and initiates the setup process.
+This script will automatically clone the deployment repository and guide you through the initial setup of CodeClarity.
+
+> [!WARNING]
+> Please make sure the Docker daemon is running before executing the setup script.
+
 ```bash
-curl -O https://raw.githubusercontent.com/CodeClarityCE/deployment/main/setup.sh && sh setup.sh
+curl -O https://raw.githubusercontent.com/CodeClarityCE/deployment/main/setup.sh && bash setup.sh
 ```
 
-### 2. Follow the Installation
-#### 1. Installing on Localhost
-Answer ```Y``` to the question:
-```bash
-Is this installation running on localhost (Y/n)?
-Y
-```
-
-Here are the actions performed:
-1.  **Clone the Deployment Repository:** It retrieves the necessary configuration files from the CodeClarityCE deployment repository.
-2.  **Start Docker Containers:** It initiates the Docker containers defined in the `docker-compose.yml` file, setting up the core services of CodeClarity.
-3.  **Download Database Dumps:** It downloads pre-populated database dumps containing initial data for the platform.
-4.  **Create Databases:** It creates the required databases for CodeClarity, ensuring a clean and organized data storage environment.
-5.  **Restore Database Content:** It restores the downloaded database dumps into the created databases, populating the platform with initial data.
-6.  **Restart Containers:** It restarts the Docker containers to apply the database changes and ensure all services are running with the latest data.
+<details>
+  <summary>What does this script do?</summary>
+  <ol>
+    <li><strong>Clone the Deployment Repository:</strong> Downloads all necessary configuration files from the CodeClarityCE deployment repository.</li>
+    <li><strong>Start Docker Containers:</strong> Launches the core CodeClarity services using <code>docker-compose.yml</code>.</li>
+    <li><strong>Download Database Dumps:</strong> Retrieves pre-populated database dumps with initial platform data.</li>
+    <li><strong>Create Databases:</strong> Sets up the required databases for CodeClarity, ensuring a clean environment.</li>
+    <li><strong>Restore Database Content:</strong> Loads the initial data into the databases.</li>
+    <li><strong>Restart Containers:</strong> Restarts all services to apply changes and ensure everything is running correctly.</li>
+  </ol>
+</details>
 
 #### 2. Installing on a specific domain name
+
 Answer ```n``` to the question:
+
 ```bash
 Is this installation running on localhost (Y/n)?
 n
 ```
 
 Then provide the domain name pointing to your server (e.g. ```localtest.io```):
-```
+
+```bash
 Enter the domain name (localtest.io):
 localtest.io
 ```
 
 CodeClarity can use Caddy to generate certificates for you if your server is publicly accessible.
 If you want Caddy to generate the certificates, answer ```Y``` to the following question:
-```
+
+```bash
 Do you want Caddy to generate certificates (Y/n)?
 Y
 ```
@@ -109,44 +109,59 @@ Y
 If you want to use your own certificate, then answer ```n``` to this question.
 The setup script will generate certificates in the `certs` directory that you can replace with your own before restarting the platform using `docker compose restart`.
 
-### 3. Update DB (Optional)
+### 3. Update the Knowledge Database (Optional)
 
-Please apply for an NVD API key [here](https://nvd.nist.gov/developers/request-an-api-key), and fill it in `.env.codeclarity`.
+To keep your vulnerability database up to date, you can refresh it using the latest data from the National Vulnerability Database (NVD).
 
-Run the command to update the knowledge DB:
+> [!NOTE]
+> Apply for a free [NVD API key](https://nvd.nist.gov/developers/request-an-api-key) and add it to your `.env.codeclarity` file before updating.
+
+**To update the knowledge database, run:**
 
 ```bash
 make knowledge-update
 ```
 
+This will download and import the latest vulnerability data, ensuring your platform has the most current security information.
+
 ### 4. Maintaining the Platform
-Once the initial configuration is complete, you no longer need to execute the setup script to start the platform. You can use standard Docker Compose commands for ongoing management:
-```bash
-# Start the platform
-docker compose up -d
 
-# Stop the platform
-docker compose down
+After the initial setup, you can manage CodeClarity using standard Docker Compose commands—no need to rerun the setup script.
 
-# Restart the platform
-docker compose restart
+> [!NOTE]
+> Common Docker Compose Commands
+>
+> - `docker compose up -d`: Start the platform in the background (detached mode).
+> - `docker compose down`: Stop the platform and remove containers.
+> - `docker compose restart`: Restart all platform containers.
+> - `docker compose pull`: Download the latest Docker images from the repository.
 
-# Pull the docker images from the repository
-docker compose pull
-```
+> [!TIP]
+> To update CodeClarity to the latest version:
+>
+> - `git pull`: Fetch the latest changes from the deployment repository.
+> - `docker compose pull`: Download updated Docker images.
+> - `docker compose restart`: Restart containers to apply updates.
 
-To update the platform, simply pull the latest changes from the repository using `git pull` and then restart the containers with `docker compose up -d`.
+> [!CAUTION]
+> Your data is stored in Docker volumes and will persist between restarts. However, always back up your data before performing major updates.
 
-## Start using the platform
+## Start Using the Platform
 
-You can visit [https://localhost:443](https://localhost:443) to start using the platform. You might need to accept the self-signed certificate generated by Caddy.
+You're ready to access CodeClarity! Open [https://localhost:443](https://localhost:443) in your browser to get started.
 
-If you imported the dump we provide, you can connect using the following credentials:
+> [!WARNING]
+> Your browser may prompt you to accept the self-signed certificate generated by Caddy. This is expected for local installations.
 
-- login: `john.doe@codeclarity.io`
-- password: `ThisIs4Str0ngP4ssW0rd?`
+> [!NOTE]
+> To help you get started quickly, use the following credentials:
+>
+> - **Login:** `john.doe@codeclarity.io`
+> - **Password:** `ThisIs4Str0ngP4ssW0rd?`
 
-Now, follow [this guide](https://www.codeclarity.io/docs/createanalysis) to create your first analysis!
+*We recommend changing your password after your first login.*
+
+Ready to explore? Follow the [Create Your First Analysis](https://doc.codeclarity.io/docs/0.0.21/tutorials/basic/create-analysis) guide to begin analyzing your code!
 
 ## Contributing
 
