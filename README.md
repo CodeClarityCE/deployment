@@ -4,47 +4,59 @@
   <img alt="codeclarity-logo" src="https://github.com/CodeClarityCE/identity/blob/main/logo/vectorized/logo_name_black.svg">
 </picture>
 
-Secure your software empower your team.
+# CodeClarity Deployment Guide
+
+**Secure your software, empower your team.**
 
 [![License](https://img.shields.io/github/license/codeclarityce/codeclarity-dev)](LICENSE.txt)
 [![Website](https://img.shields.io/badge/Website-Visit-blue)](https://www.codeclarity.io)
 
-CodeClarity is an open-source alternative to Snyk, Checkmarx, and Black Duck, offering fast source code analysis to identify dependencies, licenses, and vulnerabilities instantly.
+---
 
-It runs fully on-premises, giving you full control over your code.
+## 🚀 What is CodeClarity?
 
-Integrate CodeClarity into your CI/CD (e.g., GitHub Actions, Bash) to block vulnerable code automatically.
+CodeClarity is a **powerful, open-source security analysis platform** that serves as an alternative to Snyk, Checkmarx, and Black Duck. It provides:
 
-Create custom analysis pipelines by linking plugins. Currently, there are three in-house plugins (SBOM builder, vulnerability finder, license finder) and one external (CodeQL), with more coming soon.
+- **⚡ Fast source code analysis** - Identify dependencies, licenses, and vulnerabilities instantly
+- **🏠 Full on-premises control** - Your code never leaves your environment
+- **🔗 CI/CD integration** - Seamlessly integrates with GitHub Actions, Jenkins, and more
+- **🧩 Extensible plugin system** - Create custom analysis pipelines with modular plugins
+- **📊 Comprehensive reporting** - SBOM generation, vulnerability detection, license compliance
 
-![CodeClarity! Secure your software empower your team!](https://github.com/CodeClarityCE/identity/blob/main/illustration/rasterized/demo_illu.png)
+### Current Plugin Ecosystem
+
+- **Built-in Plugins**: SBOM builder, vulnerability finder, license finder
+- **External Integrations**: CodeQL support
+- **Expanding Library**: More plugins coming soon
+
+![CodeClarity Platform Overview](https://github.com/CodeClarityCE/identity/blob/main/illustration/rasterized/demo_illu.png)
 
 <details open="open">
 <summary>Table of Contents</summary>
 
-- [Overview](#overview)
-- [License](#license)
-- [Requirements](#requirements)
-- [Setup Instructions](#setup-instructions)
-  - [1. Download and Run the Setup Script](#1-download-and-run-the-setup-script)
-    - [2. Installing on a specific domain name](#2-installing-on-a-specific-domain-name)
-  - [3. Update the Knowledge Database (Optional)](#3-update-the-knowledge-database-optional)
-  - [4. Maintaining the Platform](#4-maintaining-the-platform)
-- [Start Using the Platform](#start-using-the-platform)
-- [Contributing](#contributing)
-- [Reporting Issues](#reporting-issues)
+- [CodeClarity Deployment Guide](#codeclarity-deployment-guide)
+  - [🚀 What is CodeClarity?](#-what-is-codeclarity)
+    - [Current Plugin Ecosystem](#current-plugin-ecosystem)
+  - [📋 System Requirements](#-system-requirements)
+  - [⚡ Quick Start Guide](#-quick-start-guide)
+  - [🛠️ Detailed Setup Instructions](#️-detailed-setup-instructions)
+    - [1. Download and Run the Setup Script](#1-download-and-run-the-setup-script)
+    - [2. Choose Your Installation Method](#2-choose-your-installation-method)
+      - [Option 1: Local Development Installation 🏠](#option-1-local-development-installation-)
+      - [Option 2: Production/Server Installation 🌐](#option-2-productionserver-installation-)
+        - [SSL Certificate Options](#ssl-certificate-options)
+          - [Automatic Certificate Generation (Recommended) 🔐](#automatic-certificate-generation-recommended-)
+          - [Custom Certificate Management 📜](#custom-certificate-management-)
+    - [3. Update the Knowledge Database (Optional)](#3-update-the-knowledge-database-optional)
+    - [4. Maintaining the Platform](#4-maintaining-the-platform)
+  - [🎉 Start Using the Platform](#-start-using-the-platform)
+  - [🤝 Contributing](#-contributing)
+  - [🐛 Reporting Issues](#-reporting-issues)
+  - [📄 License](#-license)
 
 </details>
 
-## Overview
-
-This repository contains all the configuration files needed to deploy CodeClarity. It simplifies the setup process, allowing you to quickly get the platform running.
-
-## License
-
-This project is licensed under the AGPL-3.0-or-later license.  You can find the full license details in the [LICENSE](./LICENSE) file.
-
-## Requirements
+## 📋 System Requirements
 
 Before you begin, make sure your system meets the following requirements:
 
@@ -55,9 +67,26 @@ Before you begin, make sure your system meets the following requirements:
 - **make** (optional): Simplifies maintenance and update tasks. [Install instructions](https://www.gnu.org/software/make/)
 
 > [!TIP]
-> If you're new to Docker, check out the <a href="https://docs.docker.com/get-started/" target="_blank">Docker Get Started guide</a> for a quick introduction.
+> If you're new to Docker, check out the [Docker Get Started guide](https://docs.docker.com/get-started/) for a quick introduction.
 
-## Setup Instructions
+## ⚡ Quick Start Guide
+
+**Want to get started in 2 minutes?** Run this one-liner to install CodeClarity locally:
+
+```bash
+curl -O https://raw.githubusercontent.com/CodeClarityCE/deployment/main/setup.sh && bash setup.sh
+```
+
+When prompted, choose `Y` for localhost installation, and you'll have CodeClarity running at `https://localhost:443`!
+
+> [!NOTE]
+> For production deployments or custom configurations, follow the [detailed setup instructions](#️-detailed-setup-instructions) below.
+
+---
+
+## 🛠️ Detailed Setup Instructions
+
+This repository contains all the configuration files needed to deploy CodeClarity. The setup process is designed to be simple and guides you through different deployment scenarios.
 
 ### 1. Download and Run the Setup Script
 
@@ -82,32 +111,97 @@ curl -O https://raw.githubusercontent.com/CodeClarityCE/deployment/main/setup.sh
   </ol>
 </details>
 
-#### 2. Installing on a specific domain name
+### 2. Choose Your Installation Method
 
-Answer ```n``` to the question:
+The setup script will guide you through two installation options based on your deployment environment:
+
+#### Option 1: Local Development Installation 🏠
+
+**Best for:** Development, testing, and local evaluation
+
+The fastest way to get started with CodeClarity is to install it on your local machine. This option is perfect for:
+
+- Evaluating CodeClarity's features
+- Development and testing
+- Quick proof-of-concept deployments
+
+When prompted, select **localhost installation**:
+
+```bash
+Is this installation running on localhost (Y/n)?
+Y
+```
+
+> [!NOTE]
+> **What happens next:**
+>
+> - CodeClarity will be accessible at `https://localhost:443`
+> - Self-signed certificates will be automatically generated
+> - No external DNS configuration required
+
+#### Option 2: Production/Server Installation 🌐
+
+**Best for:** Production deployments, team environments, and public-facing instances
+
+Choose this option when deploying CodeClarity on a server with a specific domain name.
+
+First, decline the localhost option:
 
 ```bash
 Is this installation running on localhost (Y/n)?
 n
 ```
 
-Then provide the domain name pointing to your server (e.g. ```localtest.io```):
+Then provide your domain name (must point to your server's IP address):
 
 ```bash
 Enter the domain name (localtest.io):
-localtest.io
+your-domain.com
 ```
 
-CodeClarity can use Caddy to generate certificates for you if your server is publicly accessible.
-If you want Caddy to generate the certificates, answer ```Y``` to the following question:
+> [!IMPORTANT]
+> **Prerequisites for domain installation:**
+>
+> - Your domain must be configured to point to your server's IP address
+> - Ensure ports 80 and 443 are accessible from the internet (if using automatic certificates)
+
+##### SSL Certificate Options
+
+You have two options for SSL certificates:
+
+###### Automatic Certificate Generation (Recommended) 🔐
+
+Let Caddy automatically generate and manage SSL certificates via Let's Encrypt:
 
 ```bash
 Do you want Caddy to generate certificates (Y/n)?
 Y
 ```
 
-If you want to use your own certificate, then answer ```n``` to this question.
-The setup script will generate certificates in the `certs` directory that you can replace with your own before restarting the platform using `docker compose restart`.
+> [!TIP]
+> **Requirements for automatic certificates:**
+>
+> - Your server must be publicly accessible from the internet
+> - Domain must resolve to your server's public IP
+> - Ports 80 and 443 must be open
+> - Let's Encrypt rate limits apply
+
+###### Custom Certificate Management 📜
+
+Use your own SSL certificates:
+
+```bash
+Do you want Caddy to generate certificates (Y/n)?
+n
+```
+
+> [!NOTE]
+> **Using custom certificates:**
+>
+> - The setup script will create placeholder certificates in the `certs` directory
+> - Replace the generated certificates with your own before starting the platform
+> - Restart the platform after replacing certificates: `docker compose restart`
+> - Supported formats: PEM-encoded certificate and private key files
 
 ### 3. Update the Knowledge Database (Optional)
 
@@ -146,7 +240,7 @@ After the initial setup, you can manage CodeClarity using standard Docker Compos
 > [!CAUTION]
 > Your data is stored in Docker volumes and will persist between restarts. However, always back up your data before performing major updates.
 
-## Start Using the Platform
+## 🎉 Start Using the Platform
 
 You're ready to access CodeClarity! Open [https://localhost:443](https://localhost:443) in your browser to get started.
 
@@ -163,10 +257,14 @@ You're ready to access CodeClarity! Open [https://localhost:443](https://localho
 
 Ready to explore? Follow the [Create Your First Analysis](https://doc.codeclarity.io/docs/0.0.21/tutorials/basic/create-analysis) guide to begin analyzing your code!
 
-## Contributing
+## 🤝 Contributing
 
 If you'd like to contribute code or documentation, please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines on how to do so.
 
-## Reporting Issues
+## 🐛 Reporting Issues
 
 Please report any issues with the setup process or other problems encountered while using this repository by opening a new issue in this project's GitHub page.
+
+## 📄 License
+
+This project is licensed under the AGPL-3.0-or-later license. You can find the full license details in the [LICENSE](./LICENSE) file.
