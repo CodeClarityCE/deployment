@@ -11,8 +11,6 @@
 [![License](https://img.shields.io/github/license/codeclarityce/codeclarity-dev)](LICENSE.txt)
 [![Website](https://img.shields.io/badge/Website-Visit-blue)](https://www.codeclarity.io)
 
----
-
 ## 🚀 What is CodeClarity?
 
 CodeClarity is a **powerful, open-source security analysis platform** that serves as an alternative to Snyk, Checkmarx, and Black Duck. It provides:
@@ -81,8 +79,6 @@ When prompted, choose `Y` for localhost installation, and you'll have CodeClarit
 
 > [!NOTE]
 > For production deployments or custom configurations, follow the [detailed setup instructions](#️-detailed-setup-instructions) below.
-
----
 
 ## 🎉 Start Using the Platform
 
