@@ -2,6 +2,7 @@ services:
   knowledge:
     image: codeclarityce/service-knowledge:0.0.14-alpha
     restart: always
+    command: ["/home/codeclarity/knowledge/plugin", "-daemon"]
     env_file:
       - .env.codeclarity
       - .env.knowledge

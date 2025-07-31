@@ -75,6 +75,6 @@ for db in "codeclarity" "knowledge" "config"; do
     docker compose -f docker-compose.yaml exec -T db sh -c "pg_restore -l /dump/$db.dump > /dump/$db.list && pg_restore -U postgres -d $db -L /dump/$db.list /dump/$db.dump"
 done
 # Start all containers
-docker compose -f docker-compose.yaml up -d
+docker compose -f docker-compose.yaml -f docker-compose.knowledge.yaml up -d
 
 echo "Installation successful, you can now visit: https://$domain_name:443"

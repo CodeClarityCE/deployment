@@ -1,9 +1,10 @@
 # Executables (local)
 DOCKER_COMP = docker compose -f docker-compose.yaml
+DOCKER_COMP_WITH_KNOWLEDGE = docker compose -f docker-compose.yaml -f docker-compose.knowledge.yaml
 
 # Misc
 .DEFAULT_GOAL = help
-.PHONY        = help up down logs pull setup-tls setup-jwt knowledge-update knowledge-setup restore-prod setup
+.PHONY        = help up down logs pull setup-tls setup-jwt knowledge-update knowledge-setup knowledge-daemon-up knowledge-daemon-down restore-prod setup
 
 # Docker containers
 CONT = $(DOCKER_COMP) exec results_db
@@ -46,11 +47,17 @@ setup-jwt: ## Setup JWT
 	@openssl ecparam -name secp521r1 -genkey -noout -out jwt/private.pem
 	@openssl ec -in jwt/private.pem -pubout -out jwt/public.pem
 
-knowledge-update: ## Create knowledge
+knowledge-update: ## Run one-time knowledge update
 	@$(DOCKER_COMP) -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action update
 
-knowledge-setup: ## Setup knowledge
+knowledge-setup: ## Run one-time knowledge setup
 	@$(DOCKER_COMP) -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action setup
+
+knowledge-daemon-up: ## Start knowledge daemon (runs updates every 6 hours) - requires knowledge-setup first
+	@$(DOCKER_COMP_WITH_KNOWLEDGE) up -d
+
+knowledge-daemon-down: ## Stop knowledge daemon
+	@$(DOCKER_COMP_WITH_KNOWLEDGE) down
 
 ## —— Commands to dump and restore database 💾 ———————————————————————————————————————————————————————————————
 download-dumps: ## Downloads the database dump
