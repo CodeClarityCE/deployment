@@ -369,6 +369,27 @@ services:
           cpus: '2'
           memory: 2G
 
+  service-knowledge:
+    image: codeclarityce/service-knowledge:0.0.14-alpha
+    restart: always
+    command: ["/home/codeclarity/knowledge/plugin", "-daemon"]
+    depends_on:
+      db:
+        condition: service_started
+      adminer:
+        condition: service_started
+    env_file:
+      - .env.codeclarity
+      - .env.knowledge
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 3G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
 volumes:
   rabbitmq_data:
 
