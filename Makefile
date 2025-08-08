@@ -3,7 +3,7 @@ DOCKER_COMP = docker compose -f docker-compose.yaml
 
 # Misc
 .DEFAULT_GOAL = help
-.PHONY        = help up down logs pull setup-tls setup-jwt knowledge-update knowledge-setup restore-prod setup
+.PHONY        = help up down logs pull setup-tls setup-jwt restore-prod setup
 
 # Docker containers
 CONT = $(DOCKER_COMP) exec results_db
@@ -35,7 +35,7 @@ save: ## Save images on disk
 load: ## Load saved images
 	@docker load < services.img
 
-setup: setup-tls setup-jwt knowledge-setup ## Setup tls and jwt
+setup: setup-tls setup-jwt ## Setup tls and jwt
 
 setup-tls: ## Setup TLS
 	@-mkdir -p certs
@@ -45,12 +45,6 @@ setup-jwt: ## Setup JWT
 	@-mkdir -p jwt
 	@openssl ecparam -name secp521r1 -genkey -noout -out jwt/private.pem
 	@openssl ec -in jwt/private.pem -pubout -out jwt/public.pem
-
-knowledge-update: ## Create knowledge
-	@$(DOCKER_COMP) -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action update
-
-knowledge-setup: ## Setup knowledge
-	@$(DOCKER_COMP) -f docker-compose.knowledge.yaml run --rm knowledge -knowledge -action setup
 
 ## —— Commands to dump and restore database 💾 ———————————————————————————————————————————————————————————————
 download-dumps: ## Downloads the database dump
