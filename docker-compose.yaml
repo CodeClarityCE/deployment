@@ -370,9 +370,9 @@ services:
           memory: 2G
 
   service-knowledge:
-    image: codeclarityce/service-knowledge:0.0.14-alpha
+    image: codeclarityce/service-knowledge
     restart: always
-    command: ["/home/codeclarity/knowledge/plugin", "-daemon"]
+    command: ["/home/codeclarity/knowledge/plugin", "-knowledge", "-action", "update", "-daemon"]
     depends_on:
       db:
         condition: service_started

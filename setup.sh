@@ -165,8 +165,7 @@ cd - >/dev/null 2>&1
 # Create databases
 print_header "Creating Databases"
 print_progress "Creating databases (this may take a moment)..."
-# Auto-accept database recreation prompts by piping 'y'
-printf 'y\ny\ny\ny\n' | docker compose -f docker-compose.yaml run --rm service-knowledge -knowledge -action setup >/dev/null 2>&1
+docker compose -f docker-compose.yaml run --rm service-knowledge -knowledge -action setup
 printf "\r"
 print_success "Databases created successfully                "
 
