@@ -233,6 +233,31 @@ services:
           cpus: '0.25'
           memory: 250M
 
+  service-notifier:
+    image: codeclarityce/service-notifier
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
+      # pg_bouncer:
+      #   condition: service_started
+      adminer:
+        condition: service_started
+    env_file:
+      - .env.amqp
+      - .env.codeclarity
+      - .env.database
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 500M
+        reservations:
+          cpus: '0.25'
+          memory: 250M
+
   plugin-js-sbom:
     image: codeclarityce/plugin-js-sbom
     restart: always
