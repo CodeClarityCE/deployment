@@ -366,6 +366,35 @@ services:
           cpus: '2'
           memory: 2G
 
+  plugin-php-sbom:
+    image: codeclarityce/plugin-php-sbom
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
+      # pg_bouncer:
+      #   condition: service_started
+      adminer:
+        condition: service_started
+    env_file:
+      - .env.amqp
+      - .env.codeclarity
+      - .env.database
+    volumes:
+      - projects:/private
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1'
+          memory: 500M
+        reservations:
+          cpus: '0.5'
+          memory: 250M
+
   plugin-codeql:
     image: codeclarityce/plugin-codeql
     platform: linux/amd64 # CodeQL works only on x86 platforms
