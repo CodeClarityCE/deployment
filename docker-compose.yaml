@@ -287,8 +287,8 @@ services:
           cpus: '0.5'
           memory: 250M
 
-  plugin-js-license:
-    image: codeclarityce/plugin-js-license
+  plugin-license-finder:
+    image: codeclarityce/plugin-license-finder
     restart: always
     depends_on:
       rabbitmq:
@@ -339,8 +339,8 @@ services:
   #         cpus: '2'
   #         memory: 2G
 
-  plugin-js-vuln-finder:
-    image: codeclarityce/plugin-js-vuln-finder
+  plugin-vuln-finder:
+    image: codeclarityce/plugin-vuln-finder
     restart: always
     depends_on:
       rabbitmq:
