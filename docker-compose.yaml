@@ -483,8 +483,10 @@ services:
     image: prometheuscommunity/postgres-exporter:v0.15.0
     container_name: codeclarity-postgres-exporter
     restart: always
+    env_file:
+      - .env.database
     environment:
-      - DATA_SOURCE_NAME=postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME:-codeclarity}?sslmode=disable
+      - DATA_SOURCE_NAME=postgresql://${PG_DB_USER:-postgres}:${PG_DB_PASSWORD}@db:5432/${PG_DB_NAME:-codeclarity}?sslmode=disable
     depends_on:
       - db
     deploy:
