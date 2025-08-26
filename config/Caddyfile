@@ -37,3 +37,18 @@
 	log
 	reverse_proxy adminer:8080
 }
+
+{$SERVER_NAME}:9091 {
+	log
+	reverse_proxy prometheus:9090
+}
+
+{$SERVER_NAME}:3001 {
+	log
+	reverse_proxy grafana:3000
+}
+
+# Metrics endpoint for monitoring
+:2019 {
+	metrics /metrics
+}

@@ -7,6 +7,13 @@ services:
     hostname: "codeclarity"
     env_file:
       - .env.amqp
+    environment:
+      - RABBITMQ_ENABLED_PLUGINS_FILE=/etc/rabbitmq/enabled_plugins
+    command: |
+      bash -c '
+        rabbitmq-plugins enable rabbitmq_management rabbitmq_prometheus --offline &&
+        exec docker-entrypoint.sh rabbitmq-server
+      '
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq/
     healthcheck:
@@ -41,14 +48,6 @@ services:
     env_file:
       - .env.database
 
-  pg_bouncer:
-    image: bitnami/pgbouncer:1.24.1
-    restart: always
-    depends_on:
-      - db
-    env_file:
-      - .env.database
-
   adminer:
     image: adminer:5.3.0
     restart: always
@@ -67,8 +66,6 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      # pg_bouncer:
-      #   condition: service_started
       adminer:
         condition: service_started
     volumes:
@@ -114,6 +111,10 @@ services:
       - target: 3000
         published: 3000
         protocol: tcp
+      # API
+      - target: 3001
+        published: 3001
+        protocol: tcp
     volumes:
       - caddy_data:/data
       - caddy_config:/config
@@ -137,8 +138,6 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      # pg_bouncer:
-      #   condition: service_started
       adminer:
         condition: service_started
     env_file:
@@ -162,8 +161,6 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      # pg_bouncer:
-      #   condition: service_started
       adminer:
         condition: service_started
     env_file:
@@ -189,8 +186,6 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      # pg_bouncer:
-      #   condition: service_started
       adminer:
         condition: service_started
     env_file:
@@ -216,8 +211,6 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      # pg_bouncer:
-      #   condition: service_started
       adminer:
         condition: service_started
     env_file:
@@ -241,8 +234,6 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      # pg_bouncer:
-      #   condition: service_started
       adminer:
         condition: service_started
     env_file:
@@ -266,8 +257,6 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      # pg_bouncer:
-      #   condition: service_started
       adminer:
         condition: service_started
     env_file:
@@ -295,8 +284,6 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      # pg_bouncer:
-      #   condition: service_started
       adminer:
         condition: service_started
     env_file:
@@ -320,8 +307,6 @@ services:
   #       condition: service_healthy
   #     db:
   #       condition: service_started
-  #     # pg_bouncer:
-  #     #   condition: service_started
   #     adminer:
   #       condition: service_started
   #   env_file:
@@ -347,8 +332,6 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      # pg_bouncer:
-      #   condition: service_started
       adminer:
         condition: service_started
     env_file:
@@ -374,8 +357,6 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      # pg_bouncer:
-      #   condition: service_started
       adminer:
         condition: service_started
     env_file:
@@ -404,8 +385,6 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      # pg_bouncer:
-      #   condition: service_started
       adminer:
         condition: service_started
     env_file:
@@ -428,11 +407,14 @@ services:
     restart: always
     command: ["/home/codeclarity/knowledge/plugin", "-knowledge", "-action", "update", "-daemon"]
     depends_on:
+      rabbitmq:
+        condition: service_healthy
       db:
         condition: service_started
       adminer:
         condition: service_started
     env_file:
+      - .env.amqp
       - .env.codeclarity
       - .env.knowledge
     deploy:
@@ -443,6 +425,76 @@ services:
         reservations:
           cpus: '1'
           memory: 2G
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: codeclarity-prometheus
+    restart: always
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.external-url=http://localhost:9091'
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    container_name: codeclarity-grafana
+    restart: always
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: codeclarity-postgres-exporter
+    restart: always
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME:-codeclarity}?sslmode=disable
+    depends_on:
+      - db
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
 
 volumes:
   rabbitmq_data:
@@ -455,3 +507,5 @@ volumes:
   db_data_container:
 
   projects:
+  prometheus_data:
+  grafana_data:

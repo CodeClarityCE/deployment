@@ -1,0 +1,66 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # CodeClarity Services
+  - job_name: 'codeclarity-api'
+    static_configs:
+      - targets: ['api:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  - job_name: 'codeclarity-services'
+    static_configs:
+      - targets: 
+        - 'service-dispatcher:8080'
+        - 'service-downloader:8080'
+        - 'service-scheduler:8080'
+        - 'service-notifier:8080'
+        - 'service-follower:8080'
+        - 'service-knowledge:8080'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  - job_name: 'codeclarity-plugins'
+    static_configs:
+      - targets:
+        - 'plugin-js-sbom:8080'
+        - 'plugin-php-sbom:8080'
+        - 'plugin-license-finder:8080'
+        - 'plugin-vuln-finder:8080'
+        - 'plugin-codeql:8080'
+        - 'plugin-js-patching:8080'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Infrastructure Services
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Database Exporter (production)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres_exporter:9187']
+    scrape_interval: 30s
+
+  # Caddy metrics (production)
+  - job_name: 'caddy'
+    static_configs:
+      - targets: ['caddy:2019']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
