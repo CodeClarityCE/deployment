@@ -486,7 +486,7 @@ services:
     env_file:
       - .env.database
     environment:
-      - DATA_SOURCE_NAME=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/codeclarity?sslmode=disable
+      - DATA_SOURCE_NAME=postgresql://${PG_DB_USER}:${PG_DB_PASSWORD}@${PG_DB_HOST}:${PG_DB_PORT}/${PG_DB_NAME}?sslmode=disable
     depends_on:
       - db
     deploy:
