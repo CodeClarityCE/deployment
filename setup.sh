@@ -141,26 +141,16 @@ done
 printf "\r"
 print_success "Database is ready                      "
 
-# Download database dumps
-print_header "Downloading Database Dumps"
-cd dump >/dev/null 2>&1
+# Ensure database dumps are available (stored in Git, knowledge.dump via LFS)
+print_header "Checking Database Dumps"
 
-print_progress "Downloading knowledge database dump..."
-curl -L https://drive.codeclarity.io/s/qRq4eRe8LBzbzXG/download/knowledge.dump --output knowledge.dump --silent
+print_progress "Verifying database dumps..."
+if [ ! -s dump/knowledge.dump ] || [ $(wc -c < dump/knowledge.dump) -lt 1000 ]; then
+    print_progress "Pulling knowledge.dump from Git LFS..."
+    git lfs pull --include="dump/knowledge.dump"
+fi
 printf "\r"
-print_success "Knowledge database dump downloaded     "
-
-print_progress "Downloading config database dump..."
-curl -L https://drive.codeclarity.io/s/rK4mEQnZxfgB4FS/download/config.dump --output config.dump --silent
-printf "\r"
-print_success "Config database dump downloaded        "
-
-print_progress "Downloading codeclarity database dump..."
-curl -L https://drive.codeclarity.io/s/EHNio4djbFdrTP8/download/codeclarity.dump --output codeclarity.dump --silent
-printf "\r"
-print_success "Codeclarity database dump downloaded   "
-
-cd - >/dev/null 2>&1
+print_success "Database dumps available               "
 
 # Create databases
 print_header "Creating Databases"

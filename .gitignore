@@ -1,6 +1,5 @@
 jwt
 certs
 .DS_Store
-dump/*
-!dump/.gitkeep
+dump/*.list
 services.img
