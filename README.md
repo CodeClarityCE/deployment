@@ -58,8 +58,9 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
 
 Before you begin, make sure your system meets the following requirements:
 
-- **curl**: For downloading the setup script and database dumps. [Install instructions](https://curl.se/download.html)
+- **curl**: For downloading the setup script. [Install instructions](https://curl.se/download.html)
 - **git**: Required for cloning the deployment repository and updating the platform. [Install instructions](https://git-scm.com/downloads)
+- **git-lfs**: Required for fetching database dumps (stored in Git LFS). [Install instructions](https://git-lfs.com/)
 - **openssl**: Required for generating SSL certificates. [Install instructions](https://www.openssl.org/source/)
 - **Docker & Docker Compose**: Containerization platform and orchestration tool for running CodeClarity. [Docker install](https://docs.docker.com/engine/install/) | [Compose install](https://docs.docker.com/compose/install/)
 - **make** (optional): Simplifies maintenance and update tasks. [Install instructions](https://www.gnu.org/software/make/)
