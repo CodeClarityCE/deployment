@@ -3,7 +3,7 @@ name: codeclarity
 services:
   rabbitmq:
     restart: always
-    image: rabbitmq:4.2.2-management-alpine
+    image: rabbitmq:4.2.3-management-alpine
     hostname: "codeclarity"
     env_file:
       - .env.amqp
