@@ -3,7 +3,7 @@ name: codeclarity
 services:
   rabbitmq:
     restart: always
-    image: rabbitmq:4.2.2-management-alpine
+    image: rabbitmq:4.2.3-management-alpine
     hostname: "codeclarity"
     env_file:
       - .env.amqp
@@ -147,11 +147,11 @@ services:
     deploy:
       resources:
         limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
           cpus: '0.5'
           memory: 500M
-        reservations:
-          cpus: '0.25'
-          memory: 250M
 
   service-downloader:
     image: codeclarityce/service-downloader
