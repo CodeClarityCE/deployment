@@ -96,6 +96,21 @@ else
     print_info "PostgreSQL TLS certificates already exist"
 fi
 
+# RabbitMQ certificate generation (signed by the shared PostgreSQL CA)
+print_header "RabbitMQ Certificate Setup"
+if [ ! -f certs/rabbitmq/server.crt ] || [ ! -f certs/rabbitmq/server.key ] || [ ! -f certs/rabbitmq/ca.crt ]; then
+    print_progress "Generating RabbitMQ TLS certificate..."
+    bash scripts/generate-rabbitmq-certs.sh certs/rabbitmq certs/postgres >/dev/null
+    if [ ! -f certs/rabbitmq/server.crt ]; then
+        print_error "Failed to generate RabbitMQ certificate"
+        exit 1
+    fi
+    printf "\r"
+    print_success "RabbitMQ TLS certificate generated"
+else
+    print_info "RabbitMQ TLS certificate already exists"
+fi
+
 # Domain configuration
 print_header "Domain Configuration"
 read -p "Is this installation running on localhost (Y/n)? " local_install
