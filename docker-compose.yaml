@@ -16,6 +16,8 @@ services:
       '
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq/
+      - ./certs/rabbitmq:/etc/rabbitmq/certs:ro
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 10s

@@ -3,7 +3,7 @@ DOCKER_COMP = docker compose -f docker-compose.yaml
 
 # Misc
 .DEFAULT_GOAL = help
-.PHONY        = help up down logs pull setup-tls setup-jwt setup-pg-certs restore-prod setup
+.PHONY        = help up down logs pull setup-tls setup-jwt setup-pg-certs setup-rabbitmq-certs restore-prod setup
 
 # Docker containers
 CONT = $(DOCKER_COMP) exec results_db
@@ -35,7 +35,7 @@ save: ## Save images on disk
 load: ## Load saved images
 	@docker load < services.img
 
-setup: setup-tls setup-jwt setup-pg-certs ## Setup tls, jwt, and pg certs
+setup: setup-tls setup-jwt setup-pg-certs setup-rabbitmq-certs ## Setup tls, jwt, pg certs, and rabbitmq certs
 
 setup-tls: ## Setup TLS
 	@-mkdir -p certs
@@ -48,6 +48,9 @@ setup-jwt: ## Setup JWT
 
 setup-pg-certs: ## Generate PostgreSQL SSL certificates
 	@sh scripts/generate-pg-certs.sh certs/postgres
+
+setup-rabbitmq-certs: ## Generate RabbitMQ TLS certificate (signed by the shared PG CA)
+	@sh scripts/generate-rabbitmq-certs.sh certs/rabbitmq certs/postgres
 
 ## —— Commands to dump and restore database 💾 ———————————————————————————————————————————————————————————————
 download-dumps: ## Downloads the database dump
