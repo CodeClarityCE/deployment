@@ -1,0 +1,45 @@
+{
+  "comment": "Loaded at boot via management.load_definitions (see rabbitmq.conf). Imports are additive — this declares only the dead-letter topology and policy; users/vhosts/permissions are managed elsewhere. Service consumers (dispatcher, downloader, notifier, ...) drop poison messages with a basic.nack(requeue=false); the 'dlx' policy routes those to the dead-letter exchange so they are retained in dead-letter-queue for inspection instead of being silently discarded.",
+  "exchanges": [
+    {
+      "name": "dead-letter",
+      "vhost": "/",
+      "type": "fanout",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "dead-letter-queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "dead-letter",
+      "vhost": "/",
+      "destination": "dead-letter-queue",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {}
+    }
+  ],
+  "policies": [
+    {
+      "vhost": "/",
+      "name": "dlx",
+      "pattern": "^(api_request|downloader_dispatcher|plugins_dispatcher|dispatcher_.*)$",
+      "apply-to": "queues",
+      "priority": 0,
+      "definition": {
+        "dead-letter-exchange": "dead-letter"
+      }
+    }
+  ]
+}
