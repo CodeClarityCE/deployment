@@ -38,6 +38,11 @@ services:
     restart: always
     # set shared memory limit when using docker-compose
     shm_size: 128mb
+    # Connection budget (transaction pooling via pgbouncer):
+    #   Server side: pgbouncer default_pool_size(20) × (roles × databases) << max_connections(200).
+    #   Client side: each service/plugin pool is bounded by DB_MAX_OPEN_CONNS (default 15)
+    #   and the API by PG_DB_POOL_MAX (default 10), but pgbouncer multiplexes them so
+    #   replica count no longer drives server connections. max_connections=200 is headroom only.
     volumes:
       - ./docker-entrypoint-initdb:/docker-entrypoint-initdb.d/
       - ./dump:/dump
@@ -53,6 +58,31 @@ services:
       - .env.database
     environment:
       - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
+
+  # Transaction-pooling connection pooler. Application services connect here
+  # (PG_DB_HOST=pgbouncer, PG_DB_PORT=6432 in .env.database) instead of directly
+  # to Postgres. Config + multi-role auth_query are in ./config/pgbouncer.ini.
+  # Prereqs for a deployment: (1) regenerate certs so the SAN includes "pgbouncer"
+  # (make setup-pg-certs), (2) set a real password in BOTH .env.database
+  # (PGBOUNCER_AUTH_PASSWORD) and ./config/userlist.txt.
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.25.2-p0
+    restart: always
+    depends_on:
+      db:
+        condition: service_started
+    volumes:
+      - ./config/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./config/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
   api:
     image: codeclarityce/api

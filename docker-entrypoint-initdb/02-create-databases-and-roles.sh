@@ -103,4 +103,32 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "config" <<-EOSQL
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cc_api, cc_service, cc_knowledge;
 EOSQL
 
+# --- pgbouncer auth_query support (transaction-pooling connection pooler) ---
+# pgbouncer authenticates every application role (cc_api, cc_service, cc_plugin,
+# cc_knowledge) by looking up its SCRAM secret via a SECURITY DEFINER function,
+# so we don't have to maintain a userlist of every role. Only the dedicated
+# low-privilege "pgbouncer_auth" role is in pgbouncer's userlist.
+PGBOUNCER_AUTH_PASSWORD="${PGBOUNCER_AUTH_PASSWORD:-$POSTGRES_PASSWORD}"
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
+  -v pgbouncer_auth_pass="$PGBOUNCER_AUTH_PASSWORD" <<-'EOSQL'
+    CREATE ROLE pgbouncer_auth LOGIN PASSWORD :'pgbouncer_auth_pass';
+    GRANT CONNECT ON DATABASE codeclarity, knowledge, plugins, config TO pgbouncer_auth;
+EOSQL
+
+# The lookup function must exist in every database pgbouncer authenticates against,
+# because auth_query runs in the database the client is connecting to.
+for db in codeclarity knowledge plugins config; do
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" <<-'EOSQL'
+        CREATE OR REPLACE FUNCTION public.pgbouncer_get_auth(p_usename TEXT)
+          RETURNS TABLE(username TEXT, password TEXT)
+          LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog AS
+        $$ SELECT rolname::text, rolpassword::text
+             FROM pg_authid
+            WHERE rolname = p_usename AND rolcanlogin; $$;
+        REVOKE ALL ON FUNCTION public.pgbouncer_get_auth(TEXT) FROM PUBLIC;
+        GRANT EXECUTE ON FUNCTION public.pgbouncer_get_auth(TEXT) TO pgbouncer_auth;
+EOSQL
+done
+
 echo "Database roles and permissions configured successfully."

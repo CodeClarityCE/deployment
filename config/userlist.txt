@@ -1,0 +1,5 @@
+; pgbouncer userlist — only the auth_user needs an entry; every application role
+; is resolved at runtime via auth_query (see pgbouncer.ini / init SQL).
+; Keep this password in sync with PGBOUNCER_AUTH_PASSWORD in .env.database.
+; pgbouncer accepts a cleartext password here even under scram-sha-256 auth.
+"pgbouncer_auth" "!ChangeMe!!"

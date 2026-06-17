@@ -26,7 +26,9 @@ openssl req -new -nodes -text \
 # Sign server certificate with CA (include SANs for modern TLS verification)
 # Use a temp file for the extension config (portable; process substitution requires bash)
 SAN_EXT=$(mktemp)
-printf "subjectAltName=DNS:db,DNS:localhost,IP:127.0.0.1\n" > "$SAN_EXT"
+# "pgbouncer" is included so the same server cert can be presented by the
+# connection pooler (clients connect to host "pgbouncer" under verify-ca).
+printf "subjectAltName=DNS:db,DNS:pgbouncer,DNS:localhost,IP:127.0.0.1\n" > "$SAN_EXT"
 openssl x509 -req -days "$SERVER_DAYS" -text \
   -in "$CERT_DIR/server.csr" \
   -CA "$CERT_DIR/ca.crt" \
