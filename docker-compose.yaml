@@ -3,7 +3,7 @@ name: codeclarity
 services:
   rabbitmq:
     restart: always
-    image: rabbitmq:4.2.3-management-alpine
+    image: rabbitmq:4.3.6-management-alpine@sha256:1aab4d911053f3ee4ff9bb231f5192ebd6a12281f8044910256a667fdb04108d
     hostname: "codeclarity"
     env_file:
       - .env.amqp
@@ -16,6 +16,9 @@ services:
       '
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq/
+      - ./certs/rabbitmq:/etc/rabbitmq/certs:ro
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./config/rabbitmq-definitions.json:/etc/rabbitmq/definitions.json:ro
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 10s
@@ -31,27 +34,55 @@ services:
           memory: 500M
 
   db:
-    image: postgres:18.1-alpine
+    image: postgres:18.6-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     restart: always
     # set shared memory limit when using docker-compose
     shm_size: 128mb
-    # or set shared memory limit when deploy via swarm stack
-    #volumes:
-    #  - type: tmpfs
-    #    target: /dev/shm
-    #    tmpfs:
-    #      size: 134217728 # 128*2^20 bytes = 128Mb
+    # Connection budget (transaction pooling via pgbouncer):
+    #   Server side: pgbouncer default_pool_size(20) × (roles × databases) << max_connections(200).
+    #   Client side: each service/plugin pool is bounded by DB_MAX_OPEN_CONNS (default 15)
+    #   and the API by PG_DB_POOL_MAX (default 10), but pgbouncer multiplexes them so
+    #   replica count no longer drives server connections. max_connections=200 is headroom only.
     volumes:
       - ./docker-entrypoint-initdb:/docker-entrypoint-initdb.d/
       - ./dump:/dump
       - db_data_container:/var/lib/postgresql/18
+      - ./config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
+    command: >
+      postgres
+        -c config_file=/etc/postgresql/postgresql.conf
+        -c hba_file=/etc/postgresql/pg_hba.conf
     env_file:
       - .env.database
+    environment:
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
 
-  adminer:
-    image: adminer:5.4.1
+  # Transaction-pooling connection pooler. Application services connect here
+  # (PG_DB_HOST=pgbouncer, PG_DB_PORT=6432 in .env.database) instead of directly
+  # to Postgres. Config + multi-role auth_query are in ./config/pgbouncer.ini.
+  # Prereqs for a deployment: (1) regenerate certs so the SAN includes "pgbouncer"
+  # (make setup-pg-certs), (2) set a real password in BOTH .env.database
+  # (PGBOUNCER_AUTH_PASSWORD) and ./config/userlist.txt.
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.25.2-p0@sha256:7d7a27d9e90985cab5cf42256f5c13a3120baa4b055b69df37beb272b89b2340
     restart: always
-    command: [ "php", "-d", "memory_limit=-1", "-d", "post_max_size=500M", "-d", "upload_max_filesize=500M", "-S", "0.0.0.0:8080", "-t", "/var/www/html" ]
+    depends_on:
+      db:
+        condition: service_started
+    volumes:
+      - ./config/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./config/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
   api:
     image: codeclarityce/api
@@ -66,12 +97,11 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     volumes:
       - ./jwt:/home/codeclarity/app/jwt
       - .env.api:/home/codeclarity/app/env/.env.prod
       - projects:/home/codeclarity/private
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
@@ -99,14 +129,6 @@ services:
       - target: 443
         published: ${HTTP3_PORT:-443}
         protocol: udp
-      # Rabbitmq
-      - target: 15672
-        published: 15672
-        protocol: tcp
-      # Adminer
-      - target: 8080
-        published: 8080
-        protocol: tcp
       # API
       - target: 3000
         published: 3000
@@ -138,12 +160,12 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     env_file:
       - .env.amqp
-      - .env.codeclarity
       - .env.database
+      - .env.codeclarity
+    volumes:
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
@@ -161,14 +183,13 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     env_file:
       - .env.amqp
-      - .env.codeclarity
       - .env.database
+      - .env.codeclarity
     volumes:
       - projects:/private
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
@@ -186,14 +207,13 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     env_file:
       - .env.amqp
-      - .env.codeclarity
       - .env.database
+      - .env.codeclarity
     volumes:
       - projects:/private
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
@@ -211,12 +231,12 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     env_file:
       - .env.amqp
-      - .env.codeclarity
       - .env.database
+      - .env.codeclarity
+    volumes:
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
@@ -234,12 +254,12 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     env_file:
       - .env.amqp
-      - .env.codeclarity
       - .env.database
+      - .env.codeclarity
+    volumes:
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
@@ -257,14 +277,13 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     env_file:
       - .env.amqp
-      - .env.codeclarity
       - .env.database
+      - .env.plugin
     volumes:
       - projects:/private
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       mode: replicated
       replicas: 1
@@ -284,12 +303,12 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     env_file:
       - .env.amqp
-      - .env.codeclarity
       - .env.database
+      - .env.plugin
+    volumes:
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
@@ -311,8 +330,8 @@ services:
   #       condition: service_started
   #   env_file:
   #     - .env.amqp
-  #     - .env.codeclarity
   #     - .env.database
+  #     - .env.plugin
   #   volumes:
   #     - projects:/private
   #   deploy:
@@ -332,14 +351,13 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     env_file:
       - .env.amqp
-      - .env.codeclarity
       - .env.database
+      - .env.plugin
     volumes:
       - projects:/private
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
@@ -357,14 +375,13 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     env_file:
       - .env.amqp
-      - .env.codeclarity
       - .env.database
+      - .env.plugin
     volumes:
       - projects:/private
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       mode: replicated
       replicas: 1
@@ -385,14 +402,13 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     env_file:
       - .env.amqp
-      - .env.codeclarity
       - .env.database
+      - .env.plugin
     volumes:
       - projects:/private
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
@@ -411,12 +427,13 @@ services:
         condition: service_healthy
       db:
         condition: service_started
-      adminer:
-        condition: service_started
     env_file:
       - .env.amqp
+      - .env.database
       - .env.codeclarity
       - .env.knowledge
+    volumes:
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
@@ -427,7 +444,7 @@ services:
           memory: 2G
 
   prometheus:
-    image: prom/prometheus:v3.8.1
+    image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
     container_name: codeclarity-prometheus
     restart: always
     volumes:
@@ -456,7 +473,7 @@ services:
           memory: 512M
 
   grafana:
-    image: grafana/grafana:12.3.0
+    image: grafana/grafana:13.2.2@sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0
     container_name: codeclarity-grafana
     restart: always
     volumes:
@@ -466,7 +483,6 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
     depends_on:
       - prometheus
@@ -480,13 +496,15 @@ services:
           memory: 512M
 
   postgres_exporter:
-    image: prometheuscommunity/postgres-exporter:v0.18.1
+    image: prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
     container_name: codeclarity-postgres-exporter
     restart: always
     env_file:
       - .env.database
     depends_on:
       - db
+    volumes:
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
