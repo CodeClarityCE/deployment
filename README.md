@@ -251,6 +251,9 @@ After the initial setup, you can manage CodeClarity using standard Docker Compos
 > - `docker compose pull`: Download updated Docker images.
 > - `docker compose restart`: Restart containers to apply updates.
 
+> [!IMPORTANT]
+> Grafana alerts on failed or stale knowledge sources. On a database created before these alerts existed, run `make grant-grafana-knowledge` once after the migrations, and set `CC_EXPORTER_PASSWORD` in `.env.grafana` to the value in `.env.database`. Alerts show in Grafana until you add a contact point there.
+
 > [!CAUTION]
 > Your data is stored in Docker volumes and will persist between restarts. However, always back up your data before performing major updates.
 
