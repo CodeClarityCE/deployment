@@ -421,7 +421,7 @@ services:
   service-knowledge:
     image: codeclarityce/service-knowledge
     restart: always
-    command: ["/home/codeclarity/knowledge/plugin", "-knowledge", "-action", "update", "-daemon"]
+    command: ["-daemon"]
     depends_on:
       rabbitmq:
         condition: service_healthy
