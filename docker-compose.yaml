@@ -421,7 +421,7 @@ services:
   service-knowledge:
     image: codeclarityce/service-knowledge
     restart: always
-    command: ["/home/codeclarity/knowledge/plugin", "-knowledge", "-action", "update", "-daemon"]
+    command: ["-daemon"]
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -480,6 +480,9 @@ services:
       - grafana_data:/var/lib/grafana
       - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./certs/postgres/ca.crt:/var/lib/postgresql/certs/ca.crt:ro
+    env_file:
+      - .env.grafana
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false

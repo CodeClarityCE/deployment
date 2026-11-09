@@ -53,7 +53,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
 
     -- CONNECT privileges per database
     GRANT CONNECT ON DATABASE codeclarity TO cc_api, cc_service, cc_plugin, cc_exporter;
-    GRANT CONNECT ON DATABASE knowledge TO cc_api, cc_service, cc_plugin, cc_knowledge;
+    GRANT CONNECT ON DATABASE knowledge TO cc_api, cc_service, cc_plugin, cc_knowledge, cc_exporter;
     GRANT CONNECT ON DATABASE plugins TO cc_api, cc_service, cc_plugin, cc_knowledge;
     GRANT CONNECT ON DATABASE config TO cc_api, cc_service, cc_plugin, cc_knowledge;
 EOSQL
@@ -75,10 +75,11 @@ EOSQL
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "knowledge" <<-EOSQL
     REVOKE ALL ON SCHEMA public FROM PUBLIC;
     GRANT USAGE, CREATE ON SCHEMA public TO cc_api, cc_service, cc_plugin, cc_knowledge;
+    GRANT USAGE ON SCHEMA public TO cc_exporter;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO cc_api, cc_service, cc_plugin;
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO cc_knowledge;
     GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO cc_knowledge;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO cc_api, cc_service, cc_plugin;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO cc_api, cc_service, cc_plugin, cc_exporter;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO cc_knowledge;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cc_knowledge;
 EOSQL
