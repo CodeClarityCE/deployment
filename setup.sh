@@ -171,16 +171,16 @@ done
 printf "\r"
 print_success "Database is ready                      "
 
-# Ensure database dumps are available (stored in Git, knowledge.dump via LFS)
+# Ensure database dumps are available (stored in Git, LFS) and match their manifest
 print_header "Checking Database Dumps"
 
 print_progress "Verifying database dumps..."
-if [ ! -s dump/knowledge.dump ] || [ $(wc -c < dump/knowledge.dump) -lt 1000 ]; then
-    print_progress "Pulling knowledge.dump from Git LFS..."
-    git lfs pull --include="dump/knowledge.dump"
+printf "\n"
+if ! bash scripts/download-dumps.sh; then
+    print_error "Database dumps are missing or do not match their manifest, nothing was restored"
+    exit 1
 fi
-printf "\r"
-print_success "Database dumps available               "
+print_success "Database dumps available and verified"
 
 # Create databases
 print_header "Creating Databases"
@@ -191,11 +191,15 @@ print_success "Databases created successfully                "
 
 # Restore database content
 print_header "Restoring Database Content"
+# restore-db.sh checks each dump against the manifest again, inside the db container.
 for db in "codeclarity" "knowledge" "config"; do
     print_progress "Restoring $db database..."
-    docker compose -f docker-compose.yaml exec -T db sh -c "PGPASSWORD=\$POSTGRES_PASSWORD pg_restore -l /dump/$db.dump > /dump/$db.list && PGPASSWORD=\$POSTGRES_PASSWORD pg_restore -U postgres --no-acl --no-owner -d $db -L /dump/$db.list /dump/$db.dump" 2>/dev/null
-    printf "\r"
-    print_success "$db database restored                 "
+    printf "\n"
+    if ! (cd scripts && sh restore-db.sh "$db"); then
+        print_error "Failed to restore the $db database, stopping setup"
+        exit 1
+    fi
+    print_success "$db database restored"
 done
 
 # Re-apply schema permissions and transfer object ownership after restore

@@ -3,3 +3,5 @@ certs
 .DS_Store
 dump/*.list
 services.img
+dump/.dump-knowledge.*
+dump/.restore.*

@@ -118,9 +118,9 @@ curl -O https://raw.githubusercontent.com/CodeClarityCE/deployment/main/setup.sh
   <ol>
     <li><strong>Clone the Deployment Repository:</strong> Downloads all necessary configuration files from the CodeClarityCE deployment repository.</li>
     <li><strong>Start Docker Containers:</strong> Launches the core CodeClarity services using <code>docker-compose.yml</code>.</li>
-    <li><strong>Download Database Dumps:</strong> Retrieves pre-populated database dumps with initial platform data.</li>
+    <li><strong>Download Database Dumps:</strong> Retrieves pre-populated database dumps with initial platform data and checks them against the dump manifest (<code>dump/knowledge-manifest.json</code>).</li>
     <li><strong>Create Databases:</strong> Sets up the required databases for CodeClarity, ensuring a clean environment.</li>
-    <li><strong>Restore Database Content:</strong> Loads the initial data into the databases.</li>
+    <li><strong>Restore Database Content:</strong> Loads the initial data into the databases, reassembling split dumps first. Setup stops if a dump does not match its manifest or a restore reports an error.</li>
     <li><strong>Restart Containers:</strong> Restarts all services to apply changes and ensure everything is running correctly.</li>
   </ol>
 </details>
