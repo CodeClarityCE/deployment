@@ -1,2 +1,10 @@
-docker compose -f ../docker-compose.yaml \
-	exec db sh -c "PGPASSWORD=\$POSTGRES_PASSWORD pg_restore -l /dump/$1.dump > /dump/$1.list && PGPASSWORD=\$POSTGRES_PASSWORD pg_restore -U postgres --no-acl --no-owner -d $1 -L /dump/$1.list /dump/$1.dump"
+# Verifies the dumps against their manifest, or restores one of them, inside the db container.
+# Usage (from scripts/): sh restore-db.sh verify | sh restore-db.sh <database>
+
+script=$(cat restore-dump.sh) || exit 1
+
+if [ "$1" = verify ]; then
+	docker compose -f ../docker-compose.yaml exec -T db sh -c "$script" restore-dump verify
+else
+	docker compose -f ../docker-compose.yaml exec -T db sh -c "$script" restore-dump restore "$1" "$1" --no-acl --no-owner
+fi
