@@ -59,7 +59,8 @@ setup-rabbitmq-certs: ## Generate RabbitMQ TLS certificate (signed by the shared
 download-dumps: ## Downloads the database dump
 	@sh scripts/download-dumps.sh
 
-restore-database: ## Restores the database
+restore-database: ## Verifies the dumps against their manifest, then restores the databases
+	@cd scripts && sh restore-db.sh verify
 	@cd scripts && sh restore-db.sh codeclarity
 	@cd scripts && sh restore-db.sh knowledge
 	@cd scripts && sh restore-db.sh config

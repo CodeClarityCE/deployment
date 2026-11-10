@@ -4,3 +4,4 @@ certs
 dump/*.list
 services.img
 dump/.dump-knowledge.*
+dump/.restore.*
