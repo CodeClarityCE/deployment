@@ -1,0 +1,244 @@
+{
+  "format": 1,
+  "build_date": "2026-11-11T11:18:58Z",
+  "postgres_version": "18.6",
+  "pg_dump_version": "pg_dump (PostgreSQL) 18.6",
+  "split_bytes": 1992294400,
+  "files": [{"name":"knowledge.dump","database":"knowledge","size":547828708,"sha256":"d64e2f762de9e24efc20da3551d8937c50967ef11699bd7640e77f4b95f0ce4f","parts":[]},{"name":"config.dump","database":"config","size":4422,"sha256":"f9801aa70888fd305bb3611194ce381b2347de3305e076b2aace2e1fa9f977a3","parts":[]}],
+  "sources": [{"source" : "cwe", "watermark" : "2026-11-11T10:19:12.782282+00:00", "last_outcome" : "success", "upstream_total" : 984, "rows" : 984, "stored_records" : 984}, {"source" : "epss", "watermark" : "2026-11-11T10:18:00.493292+00:00", "last_outcome" : "success", "upstream_total" : 402773, "rows" : 402773, "stored_records" : null}, {"source" : "friends_of_php", "watermark" : "2026-11-11T10:21:27.819096+00:00", "last_outcome" : "success", "upstream_total" : 1769, "rows" : 1769, "stored_records" : 1769}, {"source" : "gcve", "watermark" : null, "last_outcome" : "failure", "upstream_total" : null, "rows" : 382603, "stored_records" : 401036}, {"source" : "licenses", "watermark" : "2026-11-11T10:17:58.167488+00:00", "last_outcome" : "success", "upstream_total" : 740, "rows" : 740, "stored_records" : 740}, {"source" : "nvd", "watermark" : "2026-11-11T10:19:16.515546+00:00", "last_outcome" : "success", "upstream_total" : 424026, "rows" : 404869, "stored_records" : 424026}, {"source" : "osv", "watermark" : "2026-11-11T10:18:08.234159+00:00", "last_outcome" : "success", "upstream_total" : 239038, "rows" : 14924, "stored_records" : 239038}],
+  "migrations": {"knowledge": ["CreateKnowledgeBaseline1754600000000", "Init1754648228805", "AddLanguageAgnosticPackageVersionTables1754758000000", "CleanupIncorrectTables1754760000000", "DropJsVersionTable1754762000000", "CreateFriendsOfPhpTable1755451900000", "AddPHPVulnerabilityIndexes1755452000000", "AddVulnerabilitySearchIndexes1756296558000", "AddVlaiColumns1757000000000", "AddEpssTable1757100000000", "CreatePackageVulnerabilityWithFKs1767100000000", "CreateGcveTable1770000000000", "AddGcveToPackageVulnerability1770100000000", "CreateKnowledgeSourceSync1794182400000", "ExtendKnowledgeSoundTypes1794268800000", "AddKnowledgeValidation1794355200000", "AddKnowledgeSourceOrigins1794441600000", "AddKnowledgeSourceUpstreamTotal1794528000000", "AllowMissingFriendsOfPhpDates1794614400000"], "config": ["CreateConfigBaseline1754600000000", "AddGcveLastToConfig1770200000000", "AddOsvLastToConfig1785829532189"]},
+  "gate": {
+  "passed": true,
+  "checks": [
+    {
+      "name": "config.rows",
+      "expected": 1,
+      "actual": 1,
+      "pass": true
+    },
+    {
+      "name": "migrations.knowledge",
+      "expected": 19,
+      "actual": 19,
+      "pass": true
+    },
+    {
+      "name": "migrations.config",
+      "expected": 3,
+      "actual": 3,
+      "pass": true
+    },
+    {
+      "name": "dated_restore",
+      "expected": null,
+      "actual": null,
+      "pass": true
+    },
+    {
+      "name": "cwe.rows",
+      "expected": "\u003e 0",
+      "actual": 984,
+      "pass": true
+    },
+    {
+      "name": "cwe.last_outcome",
+      "expected": "success",
+      "actual": "success",
+      "pass": true
+    },
+    {
+      "name": "cwe.watermark",
+      "expected": "within 168h0m0s of 2026-11-11T11:18:54Z",
+      "actual": "2026-11-11T10:19:12Z",
+      "pass": true
+    },
+    {
+      "name": "cwe.upstream_total",
+      "expected": 984,
+      "actual": 984,
+      "pass": true
+    },
+    {
+      "name": "epss.rows",
+      "expected": "\u003e 0",
+      "actual": 402773,
+      "pass": true
+    },
+    {
+      "name": "epss.last_outcome",
+      "expected": "success",
+      "actual": "success",
+      "pass": true
+    },
+    {
+      "name": "epss.watermark",
+      "expected": "within 24h0m0s of 2026-11-11T11:18:54Z",
+      "actual": "2026-11-11T10:18:00Z",
+      "pass": true
+    },
+    {
+      "name": "epss.score_date",
+      "expected": "within 2 days of 2026-11-11",
+      "actual": "2026-11-10",
+      "pass": true
+    },
+    {
+      "name": "friends_of_php.rows",
+      "expected": "\u003e 0",
+      "actual": 1769,
+      "pass": true
+    },
+    {
+      "name": "friends_of_php.last_outcome",
+      "expected": "success",
+      "actual": "success",
+      "pass": true
+    },
+    {
+      "name": "friends_of_php.watermark",
+      "expected": "within 168h0m0s of 2026-11-11T11:18:54Z",
+      "actual": "2026-11-11T10:21:27Z",
+      "pass": true
+    },
+    {
+      "name": "friends_of_php.upstream_total",
+      "expected": 1769,
+      "actual": 1769,
+      "pass": true
+    },
+    {
+      "name": "gcve.rows",
+      "expected": "\u003e 0",
+      "actual": 382603,
+      "pass": true
+    },
+    {
+      "name": "gcve.last_outcome",
+      "expected": "success",
+      "actual": "failure",
+      "pass": false,
+      "waived": true
+    },
+    {
+      "name": "gcve.watermark",
+      "expected": "within 48h0m0s of 2026-11-11T11:18:54Z",
+      "actual": null,
+      "pass": false,
+      "detail": "source has no watermark",
+      "waived": true
+    },
+    {
+      "name": "gcve.upstream_total",
+      "expected": null,
+      "actual": 401036,
+      "pass": false,
+      "detail": "no upstream total recorded",
+      "waived": true
+    },
+    {
+      "name": "licenses.rows",
+      "expected": "\u003e 0",
+      "actual": 740,
+      "pass": true
+    },
+    {
+      "name": "licenses.last_outcome",
+      "expected": "success",
+      "actual": "success",
+      "pass": true
+    },
+    {
+      "name": "licenses.watermark",
+      "expected": "within 168h0m0s of 2026-11-11T11:18:54Z",
+      "actual": "2026-11-11T10:17:58Z",
+      "pass": true
+    },
+    {
+      "name": "licenses.upstream_total",
+      "expected": 740,
+      "actual": 740,
+      "pass": true
+    },
+    {
+      "name": "nvd.rows",
+      "expected": "\u003e 0",
+      "actual": 404869,
+      "pass": true
+    },
+    {
+      "name": "nvd.last_outcome",
+      "expected": "success",
+      "actual": "success",
+      "pass": true
+    },
+    {
+      "name": "nvd.watermark",
+      "expected": "within 48h0m0s of 2026-11-11T11:18:54Z",
+      "actual": "2026-11-11T10:19:16Z",
+      "pass": true
+    },
+    {
+      "name": "nvd.upstream_total",
+      "expected": 424026,
+      "actual": 424026,
+      "pass": true
+    },
+    {
+      "name": "nvd.configurations",
+      "expected": "at most 325 (0.1% of 325013)",
+      "actual": 126,
+      "pass": true
+    },
+    {
+      "name": "osv.rows",
+      "expected": "\u003e 0",
+      "actual": 14924,
+      "pass": true
+    },
+    {
+      "name": "osv.last_outcome",
+      "expected": "success",
+      "actual": "success",
+      "pass": true
+    },
+    {
+      "name": "osv.watermark",
+      "expected": "within 24h0m0s of 2026-11-11T11:18:54Z",
+      "actual": "2026-11-11T10:18:08Z",
+      "pass": true
+    },
+    {
+      "name": "osv.upstream_total",
+      "expected": 239038,
+      "actual": 239038,
+      "pass": true
+    },
+    {
+      "name": "osv.links.npm",
+      "expected": "\u003e 0",
+      "actual": 8430,
+      "pass": true
+    },
+    {
+      "name": "osv.links.packagist",
+      "expected": "\u003e 0",
+      "actual": 8051,
+      "pass": true
+    },
+    {
+      "name": "osv.malicious",
+      "expected": "reported, not counted in osv.rows",
+      "actual": 223209,
+      "pass": true
+    }
+  ],
+  "waiver": {
+    "reason": "CIRCL vulnrichment dump is empty upstream since 2026-10-04 (CodeClarityCE/codeclarity-dev#84)",
+    "checks": [
+      "gcve.last_outcome",
+      "gcve.upstream_total",
+      "gcve.watermark"
+    ]
+  }
+}
+}
