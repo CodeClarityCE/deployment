@@ -1,3 +1,4 @@
+# shellcheck shell=sh
 # Verifies the dumps against their manifest, or restores one of them, inside the db container.
 # Usage (from scripts/): sh restore-db.sh verify | sh restore-db.sh <database>
 
