@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2059 # color codes in the format string need printf to expand them
 
 # Color codes for better output (using printf for portability)
 RED='\033[0;31m'
@@ -56,6 +57,7 @@ if [ -f ".git" ] || [ -d ".git" ]; then
 else
     print_progress "Cloning repository..."
     git clone https://github.com/CodeClarityCE/deployment.git >/dev/null 2>&1
+    # shellcheck disable=SC2164 # unchanged: if the clone failed, the next steps fail without the files
     cd deployment
     printf "\r"
     print_success "Repository cloned"
@@ -113,17 +115,17 @@ fi
 
 # Domain configuration
 print_header "Domain Configuration"
-read -p "Is this installation running on localhost (Y/n)? " local_install
+read -r -p "Is this installation running on localhost (Y/n)? " local_install
 
 domain_name="localhost"
 if [[ "$local_install" == "n" || "$local_install" == "N" ]]; then
-    read -p "Enter the domain name (localtest.io): " domain_name
+    read -r -p "Enter the domain name (localtest.io): " domain_name
     print_info "Configuring for domain: $domain_name"
     
     sed -i.bak "s|https://localhost|https://$domain_name|g" .env.api
     sed -i.bak "s/SERVER_NAME=localhost/SERVER_NAME=$domain_name/" .env.frontend
     
-    read -p "Do you want Caddy to generate certificates (Y/n)? " caddy_generate_certs
+    read -r -p "Do you want Caddy to generate certificates (Y/n)? " caddy_generate_certs
     
     if [[ "$caddy_generate_certs" == "n" || "$caddy_generate_certs" == "N" ]]; then
         print_progress "Generating self-signed certificates..."
@@ -171,16 +173,16 @@ done
 printf "\r"
 print_success "Database is ready                      "
 
-# Ensure database dumps are available (stored in Git, knowledge.dump via LFS)
+# Ensure database dumps are available (stored in Git, LFS) and match their manifest
 print_header "Checking Database Dumps"
 
 print_progress "Verifying database dumps..."
-if [ ! -s dump/knowledge.dump ] || [ $(wc -c < dump/knowledge.dump) -lt 1000 ]; then
-    print_progress "Pulling knowledge.dump from Git LFS..."
-    git lfs pull --include="dump/knowledge.dump"
+printf "\n"
+if ! bash scripts/download-dumps.sh; then
+    print_error "Database dumps are missing or do not match their manifest, nothing was restored"
+    exit 1
 fi
-printf "\r"
-print_success "Database dumps available               "
+print_success "Database dumps available and verified"
 
 # Create databases
 print_header "Creating Databases"
@@ -191,11 +193,15 @@ print_success "Databases created successfully                "
 
 # Restore database content
 print_header "Restoring Database Content"
+# restore-db.sh checks each dump against the manifest again, inside the db container.
 for db in "codeclarity" "knowledge" "config"; do
     print_progress "Restoring $db database..."
-    docker compose -f docker-compose.yaml exec -T db sh -c "PGPASSWORD=\$POSTGRES_PASSWORD pg_restore -l /dump/$db.dump > /dump/$db.list && PGPASSWORD=\$POSTGRES_PASSWORD pg_restore -U postgres --no-acl --no-owner -d $db -L /dump/$db.list /dump/$db.dump" 2>/dev/null
-    printf "\r"
-    print_success "$db database restored                 "
+    printf "\n"
+    if ! (cd scripts && sh restore-db.sh "$db"); then
+        print_error "Failed to restore the $db database, stopping setup"
+        exit 1
+    fi
+    print_success "$db database restored"
 done
 
 # Re-apply schema permissions and transfer object ownership after restore
@@ -207,9 +213,8 @@ apply_db_grants() {
     shift
     # Each remaining argument is a SQL statement
     for sql in "$@"; do
-        docker compose -f docker-compose.yaml exec -T db \
-            sh -c "PGPASSWORD=\$POSTGRES_PASSWORD psql -U postgres -d $db -c '$sql'" 2>&1
-        if [ $? -ne 0 ]; then
+        if ! docker compose -f docker-compose.yaml exec -T db \
+            sh -c "PGPASSWORD=\$POSTGRES_PASSWORD psql -U postgres -d $db -c '$sql'" 2>&1; then
             print_error "Failed to apply grant on $db: $sql"
             exit 1
         fi

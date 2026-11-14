@@ -118,9 +118,9 @@ curl -O https://raw.githubusercontent.com/CodeClarityCE/deployment/main/setup.sh
   <ol>
     <li><strong>Clone the Deployment Repository:</strong> Downloads all necessary configuration files from the CodeClarityCE deployment repository.</li>
     <li><strong>Start Docker Containers:</strong> Launches the core CodeClarity services using <code>docker-compose.yml</code>.</li>
-    <li><strong>Download Database Dumps:</strong> Retrieves pre-populated database dumps with initial platform data.</li>
+    <li><strong>Download Database Dumps:</strong> Retrieves pre-populated database dumps with initial platform data and checks them against the dump manifest (<code>dump/knowledge-manifest.json</code>).</li>
     <li><strong>Create Databases:</strong> Sets up the required databases for CodeClarity, ensuring a clean environment.</li>
-    <li><strong>Restore Database Content:</strong> Loads the initial data into the databases.</li>
+    <li><strong>Restore Database Content:</strong> Loads the initial data into the databases, reassembling split dumps first. Setup stops if a dump does not match its manifest or a restore reports an error.</li>
     <li><strong>Restart Containers:</strong> Restarts all services to apply changes and ensure everything is running correctly.</li>
   </ol>
 </details>
@@ -250,6 +250,9 @@ After the initial setup, you can manage CodeClarity using standard Docker Compos
 > - `git pull`: Fetch the latest changes from the deployment repository.
 > - `docker compose pull`: Download updated Docker images.
 > - `docker compose restart`: Restart containers to apply updates.
+
+> [!IMPORTANT]
+> Grafana alerts on failed or stale knowledge sources. On a database created before these alerts existed, run `make grant-grafana-knowledge` once after the migrations, and set `CC_EXPORTER_PASSWORD` in `.env.grafana` to the value in `.env.database`. Alerts show in Grafana until you add a contact point there. If you override `KNOWLEDGE_STALE_AFTER_HOURS_*` on the API, change the thresholds in `config/grafana/provisioning/alerting/knowledge-sources.yml` to match.
 
 > [!CAUTION]
 > Your data is stored in Docker volumes and will persist between restarts. However, always back up your data before performing major updates.

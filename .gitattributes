@@ -1,1 +1,2 @@
 dump/knowledge.dump filter=lfs diff=lfs merge=lfs -text
+dump/*.dump.part-* filter=lfs diff=lfs merge=lfs -text
