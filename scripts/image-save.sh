@@ -9,3 +9,5 @@ done
 
 # shellcheck disable=SC2086 # splits the image list into arguments
 docker save -o services.img $images
+# Deliberate shellcheck error for the #99 probe.
+echo $1
