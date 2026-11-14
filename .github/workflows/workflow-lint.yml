@@ -1,0 +1,49 @@
+# Lints the calling repo's workflows and Dependabot config with actionlint and zizmor.
+name: Workflow lint
+
+on:
+  workflow_call:
+
+permissions: {}
+
+env:
+  ACTIONLINT_IMAGE: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+  ZIZMOR_IMAGE: ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d
+
+jobs:
+  workflows:
+    name: workflow lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: actionlint
+        run: |
+          # actionlint 1.7.12 predates the $/ self-repository syntax, so skip that one error.
+          docker run --rm -v "$GITHUB_WORKSPACE:/repo" -w /repo "$ACTIONLINT_IMAGE" \
+            -ignore 'reusable workflow call "\$/' \
+            -format '{{range $err := .}}::error file={{$err.Filepath}},line={{$err.Line}},col={{$err.Column}}::{{$err.Message}}%0A```%0A{{replace $err.Snippet "\\n" "%0A"}}%0A```\n{{end}}'
+      - name: zizmor
+        # Runs even when actionlint fails, so both report.
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Our own CodeClarityCE refs may use tags like v1; everything else needs a SHA.
+          cat >"$RUNNER_TEMP/zizmor.yml" <<'EOF'
+          rules:
+            unpinned-uses:
+              config:
+                policies:
+                  "CodeClarityCE/*": ref-pin
+                  "*": hash-pin
+            dependabot-cooldown:
+              config:
+                days: 3
+          EOF
+          docker run --rm -e GH_TOKEN -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP/zizmor.yml:/zizmor.yml:ro" \
+            -w /repo "$ZIZMOR_IMAGE" --config /zizmor.yml --format github .
