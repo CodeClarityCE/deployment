@@ -1,3 +1,4 @@
+# shellcheck shell=sh
 # Verifies dumps against the knowledge dump manifest and restores them, reassembling split dumps.
 # Runs on a host or inside the db container (busybox sh). Manifest format: docs/knowledge-dump.md
 # in codeclarity-dev.
@@ -108,6 +109,7 @@ verify() {
 	while read -r name whole; do
 		parts=$(listed_parts "$name")
 		if [ -n "$parts" ]; then
+			# shellcheck disable=SC2086 # splits the part list into file names
 			got=$(cd "$DUMP_DIR" && cat $parts 2>/dev/null | sha)
 		else
 			got=$(grep "  $name\$" "$DUMP_DIR/$SUMS" | cut -d' ' -f1)
@@ -151,7 +153,9 @@ prepare() {
 		mkdir "$staging" || fail "cannot create $staging"
 		trap 'rm -rf "$staging"' EXIT
 		source="$staging/$name"
+		# shellcheck disable=SC2086 # splits the part list into file names
 		echo "restore-dump: reassembling $name from $(echo $parts | wc -w | tr -d ' ') parts"
+		# shellcheck disable=SC2086 # splits the part list into file names
 		(cd "$DUMP_DIR" && cat $parts) >"$source" || fail "cannot reassemble $name"
 	elif [ ! -f "$source" ]; then
 		fail "$source not found"

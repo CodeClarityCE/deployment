@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2059 # color codes in the format string need printf to expand them
 
 # Color codes for better output (using printf for portability)
 RED='\033[0;31m'
@@ -56,6 +57,7 @@ if [ -f ".git" ] || [ -d ".git" ]; then
 else
     print_progress "Cloning repository..."
     git clone https://github.com/CodeClarityCE/deployment.git >/dev/null 2>&1
+    # shellcheck disable=SC2164 # unchanged: if the clone failed, the next steps fail without the files
     cd deployment
     printf "\r"
     print_success "Repository cloned"
@@ -113,17 +115,17 @@ fi
 
 # Domain configuration
 print_header "Domain Configuration"
-read -p "Is this installation running on localhost (Y/n)? " local_install
+read -r -p "Is this installation running on localhost (Y/n)? " local_install
 
 domain_name="localhost"
 if [[ "$local_install" == "n" || "$local_install" == "N" ]]; then
-    read -p "Enter the domain name (localtest.io): " domain_name
+    read -r -p "Enter the domain name (localtest.io): " domain_name
     print_info "Configuring for domain: $domain_name"
     
     sed -i.bak "s|https://localhost|https://$domain_name|g" .env.api
     sed -i.bak "s/SERVER_NAME=localhost/SERVER_NAME=$domain_name/" .env.frontend
     
-    read -p "Do you want Caddy to generate certificates (Y/n)? " caddy_generate_certs
+    read -r -p "Do you want Caddy to generate certificates (Y/n)? " caddy_generate_certs
     
     if [[ "$caddy_generate_certs" == "n" || "$caddy_generate_certs" == "N" ]]; then
         print_progress "Generating self-signed certificates..."
@@ -211,9 +213,8 @@ apply_db_grants() {
     shift
     # Each remaining argument is a SQL statement
     for sql in "$@"; do
-        docker compose -f docker-compose.yaml exec -T db \
-            sh -c "PGPASSWORD=\$POSTGRES_PASSWORD psql -U postgres -d $db -c '$sql'" 2>&1
-        if [ $? -ne 0 ]; then
+        if ! docker compose -f docker-compose.yaml exec -T db \
+            sh -c "PGPASSWORD=\$POSTGRES_PASSWORD psql -U postgres -d $db -c '$sql'" 2>&1; then
             print_error "Failed to apply grant on $db: $sql"
             exit 1
         fi
