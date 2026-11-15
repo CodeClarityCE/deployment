@@ -1,7 +1,7 @@
 jwt
 certs
 .DS_Store
-dump/*.list
 services.img
-dump/.dump-knowledge.*
-dump/.restore.*
+# Output of make dump-knowledge in the umbrella; dumps ship as the knowledge-dump image.
+dump/*
+!dump/.gitkeep

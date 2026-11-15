@@ -56,11 +56,7 @@ setup-rabbitmq-certs: ## Generate RabbitMQ TLS certificate (signed by the shared
 	@sh scripts/generate-rabbitmq-certs.sh certs/rabbitmq certs/postgres
 
 ## —— Commands to dump and restore database 💾 ———————————————————————————————————————————————————————————————
-download-dumps: ## Downloads the database dump
-	@sh scripts/download-dumps.sh
-
 restore-database: ## Verifies the dumps against their manifest, then restores the databases
 	@cd scripts && sh restore-db.sh verify
-	@cd scripts && sh restore-db.sh codeclarity
 	@cd scripts && sh restore-db.sh knowledge
 	@cd scripts && sh restore-db.sh config
