@@ -111,6 +111,25 @@ services:
       db:
         condition: service_healthy
 
+  # One-shot job: creates the global default analyzer unless a global analyzer
+  # of that name exists, then exits. Connects as the API's role, straight on Postgres.
+  default-analyzer:
+    image: codeclarityce/api
+    command: ["node", "dist/scripts/create-default-analyzer.js"]
+    env_file:
+      - .env.api
+      - .env.database
+    environment:
+      - PG_DB_HOST=db
+      - PG_DB_PORT=5432
+    restart: "no"
+    volumes:
+      - .env.api:/home/codeclarity/app/env/.env.prod
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   api:
     image: codeclarityce/api
     env_file:
@@ -121,6 +140,8 @@ services:
     restart: always
     depends_on:
       migrate:
+        condition: service_completed_successfully
+      default-analyzer:
         condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
