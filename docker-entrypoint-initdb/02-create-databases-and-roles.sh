@@ -52,7 +52,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
     GRANT pg_read_all_stats TO cc_exporter;
 
     -- CONNECT privileges per database
-    GRANT CONNECT ON DATABASE codeclarity TO cc_api, cc_service, cc_plugin, cc_exporter;
+    -- cc_knowledge only connects (the shared service base pings every database); it gets no table access here.
+    GRANT CONNECT ON DATABASE codeclarity TO cc_api, cc_service, cc_plugin, cc_knowledge, cc_exporter;
     GRANT CONNECT ON DATABASE knowledge TO cc_api, cc_service, cc_plugin, cc_knowledge, cc_exporter;
     GRANT CONNECT ON DATABASE plugins TO cc_api, cc_service, cc_plugin, cc_knowledge;
     GRANT CONNECT ON DATABASE config TO cc_api, cc_service, cc_plugin, cc_knowledge;
