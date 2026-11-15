@@ -128,6 +128,8 @@ services:
     configs:
       - source: generate-secrets
         target: /usr/local/bin/generate-secrets.sh
+      - source: rabbitmq-definitions
+        target: /etc/codeclarity/rabbitmq-definitions.json
     volumes:
       - secrets:/secrets
       - secrets-db:/secrets/db
@@ -156,14 +158,11 @@ services:
       - bash
       - -c
       - |
-        set -a && . /run/codeclarity/env && set +a &&
         rabbitmq-plugins enable rabbitmq_management rabbitmq_prometheus --offline &&
         exec docker-entrypoint.sh rabbitmq-server
     configs:
       - source: rabbitmq-conf
         target: /etc/rabbitmq/rabbitmq.conf
-      - source: rabbitmq-definitions
-        target: /etc/rabbitmq/definitions.json
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq/
       - secrets-rabbitmq:/run/codeclarity:ro

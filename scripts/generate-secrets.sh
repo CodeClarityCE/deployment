@@ -2,6 +2,7 @@
 # The secrets setup job: generates each instance secret once into a store and never overwrites
 # one that exists, then lays out, per service, the files that service reads.
 # Usage: sh generate-secrets.sh [dir]   (default /secrets; needs openssl, run as root)
+# Env: RABBITMQ_DEFINITIONS, the static RabbitMQ definitions copied into its view.
 #
 # <dir>/.store holds the secrets themselves. Each other directory is one service's view, mounted
 # alone into that service, and is rebuilt from the store on every run.
@@ -13,6 +14,7 @@ store="$dir/.store"
 PG_UID=70
 # RabbitMQ runs as rabbitmq (uid 100, gid 101) in its Alpine image.
 RABBITMQ_OWNER=100:101
+RABBITMQ_DEFINITIONS=${RABBITMQ_DEFINITIONS:-/etc/codeclarity/rabbitmq-definitions.json}
 DAYS=3650
 
 fail() {
@@ -36,6 +38,10 @@ once() {
 	}
 	mv "$tmp" "$store/$1"
 	echo "generate-secrets: generated $1"
+}
+
+salt() {
+	openssl rand 4 >"$1"
 }
 
 password() {
@@ -76,6 +82,7 @@ for name in postgres cc_api cc_service cc_plugin cc_knowledge cc_exporter pgboun
 	rabbitmq cookie_secret grafana_admin; do
 	once "${name}_password" password
 done
+once rabbitmq_salt salt
 once ca.key rsa_key
 once ca.crt ca_cert
 once postgres.key rsa_key
@@ -127,7 +134,35 @@ done
 printf '"pgbouncer_auth" "%s"\n' "$(secret pgbouncer_auth)" | put pgbouncer/userlist.txt 600
 chown "$PG_UID:$PG_UID" "$dir/pgbouncer/userlist.txt"
 
-env_file rabbitmq/env "RABBITMQ_DEFAULT_USER=codeclarity" "RABBITMQ_DEFAULT_PASS=$(secret rabbitmq)"
+# RabbitMQ skips its default user and vhost when it imports definitions, so they are declared here.
+# The hash uses its sha256 scheme, base64 of salt then sha256(salt, password), with a stored salt.
+rabbitmq_hash() {
+	{
+		cat "$store/rabbitmq_salt"
+		printf '%s' "$(secret rabbitmq)" | cat "$store/rabbitmq_salt" - | openssl dgst -sha256 -binary
+	} | openssl base64 -A
+}
+hash=$(rabbitmq_hash) || fail "cannot hash the RabbitMQ password"
+put rabbitmq/definitions/00-users.json 440 <<EOF
+{
+  "vhosts": [{"name": "/"}],
+  "users": [
+    {
+      "name": "codeclarity",
+      "password_hash": "$hash",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ["administrator"]
+    }
+  ],
+  "permissions": [
+    {"user": "codeclarity", "vhost": "/", "configure": ".*", "write": ".*", "read": ".*"}
+  ]
+}
+EOF
+chown "$RABBITMQ_OWNER" "$dir/rabbitmq/definitions/00-users.json"
+[ -s "$RABBITMQ_DEFINITIONS" ] || fail "no RabbitMQ definitions at $RABBITMQ_DEFINITIONS"
+put rabbitmq/definitions/10-dead-letter.json <"$RABBITMQ_DEFINITIONS"
+rm -f "$dir/rabbitmq/env"
 copy rabbitmq/server.crt rabbitmq.crt
 copy rabbitmq/server.key rabbitmq.key 600
 chown "$RABBITMQ_OWNER" "$dir/rabbitmq/server.key"
