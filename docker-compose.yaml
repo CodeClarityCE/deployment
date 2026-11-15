@@ -119,9 +119,8 @@ services:
       RELEASE: *release-version
       CODECLARITY_VERSION: ${CODECLARITY_VERSION:-}
 
-  # One-shot job: generates every secret (role passwords, broker password, JWT keys,
-  # internal certificates) into the secrets volume, never overwriting one that exists,
-  # and gives each service its own volume with only what it reads.
+  # One-shot job: generates any missing secret into the secrets volume and gives each
+  # service a volume with only what it reads.
   generate-secrets:
     image: *rabbitmq-image
     restart: "no"
@@ -249,9 +248,8 @@ services:
           cpus: "0.25"
           memory: 128M
 
-  # One-shot job: restores knowledge and config from the knowledge dump image when the
-  # knowledge database has no tables, then exits. A dump failing its manifest fails it,
-  # which keeps the app services stopped. KNOWLEDGE_DUMP_IMAGE swaps in another dump.
+  # One-shot job: restores knowledge and config from the dump image when knowledge is empty.
+  # KNOWLEDGE_DUMP_IMAGE swaps in another dump image.
   knowledge-restore:
     image: ${KNOWLEDGE_DUMP_IMAGE:-codeclarityce/knowledge-dump:2026-11-11}
     restart: "no"
@@ -268,9 +266,8 @@ services:
       db:
         condition: service_healthy
 
-  # One-shot job: applies pending migrations to every database, straight on
-  # Postgres (not pgbouncer) as postgres, owned by each database's role, then exits.
-  # The API and every service wait for it to succeed.
+  # One-shot job: applies pending migrations straight on Postgres (not pgbouncer).
+  # The API and every service wait for it.
   migrate:
     image: codeclarityce/api
     command: ["node", "dist/scripts/migrate.js"]
