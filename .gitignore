@@ -1,7 +1,5 @@
-jwt
-certs
 .DS_Store
-services.img
+.env
 # Output of make dump-knowledge in the umbrella; dumps ship as the knowledge-dump image.
 dump/*
 !dump/.gitkeep

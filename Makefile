@@ -1,26 +1,16 @@
-# Executables (local)
+# Shortcuts for the production stack; each is a plain `docker compose` command.
 DOCKER_COMP = docker compose -f docker-compose.yaml
 
-# Misc
 .DEFAULT_GOAL = help
-.PHONY        = help up down logs pull setup-tls setup-jwt setup-pg-certs setup-rabbitmq-certs restore-prod setup grant-grafana-knowledge
+.PHONY: help up down logs pull
 
-# Docker containers
-CONT = $(DOCKER_COMP) exec results_db
-
-# Executables
-TAR = $(CONT) tar
-
-
-## —— 🐳 The PHP pipeline Makefile 🐳 ——————————————————————————————————
 help: ## Outputs this help screen
 	@grep -E '(^[a-zA-Z0-9_-]+:.*?##.*$$)|(^##)' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}{printf "\033[32m%-30s\033[0m %s\n", $$1, $$2}' | sed -e 's/\[32m##/[33m/'
 
-## —— Docker 🐳 ————————————————————————————————————————————————————————————————
-up: ## Starts the Docker images
+up: ## Installs, upgrades or starts the stack
 	@$(DOCKER_COMP) up -d
 
-down: ## Stops the Docker images
+down: ## Stops the stack (keeps data and secrets)
 	@$(DOCKER_COMP) down
 
 logs: ## Display logs
@@ -28,35 +18,3 @@ logs: ## Display logs
 
 pull: ## Pull images from docker hub
 	@$(DOCKER_COMP) pull
-
-save: ## Save images on disk
-	@sh scripts/image-save.sh
-
-load: ## Load saved images
-	@docker load < services.img
-
-setup: setup-tls setup-jwt setup-pg-certs setup-rabbitmq-certs ## Setup tls, jwt, pg certs, and rabbitmq certs
-
-setup-tls: ## Setup TLS
-	@-mkdir -p certs
-	@mkcert -cert-file certs/tls.pem -key-file certs/tls.key "localtest.io"
-
-setup-jwt: ## Setup JWT
-	@-mkdir -p jwt
-	@openssl ecparam -name secp521r1 -genkey -noout -out jwt/private.pem
-	@openssl ec -in jwt/private.pem -pubout -out jwt/public.pem
-
-setup-pg-certs: ## Generate PostgreSQL SSL certificates
-	@sh scripts/generate-pg-certs.sh certs/postgres
-
-grant-grafana-knowledge: ## Lets Grafana read knowledge sync state on an existing database
-	@$(DOCKER_COMP) exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U postgres -d knowledge -c "GRANT CONNECT ON DATABASE knowledge TO cc_exporter" -c "GRANT USAGE ON SCHEMA public TO cc_exporter" -c "GRANT SELECT ON knowledge_source_sync TO cc_exporter"'
-
-setup-rabbitmq-certs: ## Generate RabbitMQ TLS certificate (signed by the shared PG CA)
-	@sh scripts/generate-rabbitmq-certs.sh certs/rabbitmq certs/postgres
-
-## —— Commands to dump and restore database 💾 ———————————————————————————————————————————————————————————————
-restore-database: ## Verifies the dumps against their manifest, then restores the databases
-	@cd scripts && sh restore-db.sh verify
-	@cd scripts && sh restore-db.sh knowledge
-	@cd scripts && sh restore-db.sh config

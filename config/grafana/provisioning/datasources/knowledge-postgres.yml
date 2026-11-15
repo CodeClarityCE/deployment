@@ -12,8 +12,8 @@ datasources:
       database: knowledge
       sslmode: verify-ca
       tlsConfigurationMethod: file-path
-      sslRootCertFile: /var/lib/postgresql/certs/ca.crt
+      sslRootCertFile: /run/codeclarity/ca.crt
       postgresVersion: 1800
       maxOpenConns: 2
     secureJsonData:
-      password: $CC_EXPORTER_PASSWORD
+      password: $__file{/run/codeclarity/cc_exporter_password}
