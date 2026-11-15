@@ -58,6 +58,13 @@ services:
       - .env.database
     environment:
       - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
+    # Checks over TCP, which the first-run init server does not listen on, so the
+    # migrate job only starts once the init script has created the databases and roles.
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
 
   # Transaction-pooling connection pooler. Application services connect here
   # (PG_DB_HOST=pgbouncer, PG_DB_PORT=6432 in .env.database) instead of directly
@@ -84,6 +91,26 @@ services:
           cpus: '0.25'
           memory: 128M
 
+  # One-shot job: applies pending migrations to every database, straight on
+  # Postgres (not pgbouncer) as PG_DB_ADMIN_USER, then exits. The API and every
+  # service wait for it to succeed.
+  migrate:
+    image: codeclarityce/api
+    command: ["node", "dist/scripts/migrate.js"]
+    env_file:
+      - .env.api
+      - .env.database
+    environment:
+      - PG_DB_HOST=db
+      - PG_DB_PORT=5432
+    restart: "no"
+    volumes:
+      - .env.api:/home/codeclarity/app/env/.env.prod
+      - ./certs/postgres:/var/lib/postgresql/certs:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
   api:
     image: codeclarityce/api
     env_file:
@@ -93,6 +120,8 @@ services:
       - .env.database
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
@@ -156,6 +185,8 @@ services:
     image: codeclarityce/service-dispatcher
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
@@ -179,6 +210,8 @@ services:
     image: codeclarityce/service-downloader
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
@@ -203,6 +236,8 @@ services:
     image: codeclarityce/service-package-follower
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
@@ -227,6 +262,8 @@ services:
     image: codeclarityce/service-scheduler
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
@@ -250,6 +287,8 @@ services:
     image: codeclarityce/service-notifier
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
@@ -273,6 +312,8 @@ services:
     image: codeclarityce/plugin-js-sbom
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
@@ -299,6 +340,8 @@ services:
     image: codeclarityce/plugin-license-finder
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
@@ -347,6 +390,8 @@ services:
     image: codeclarityce/plugin-vuln-finder
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
@@ -371,6 +416,8 @@ services:
     image: codeclarityce/plugin-php-sbom
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
@@ -398,6 +445,8 @@ services:
     platform: linux/amd64 # CodeQL works only on x86 platforms
     restart: always
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
@@ -423,6 +472,8 @@ services:
     restart: always
     command: ["-daemon"]
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       db:
