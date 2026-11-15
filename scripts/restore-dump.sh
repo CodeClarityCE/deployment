@@ -1,16 +1,18 @@
 # shellcheck shell=sh
-# Verifies dumps against the knowledge dump manifest and restores them, reassembling split dumps.
+# Verifies dumps against the knowledge dump manifest and restores them.
 # Runs on a host or inside the db container (busybox sh). Manifest format: docs/knowledge-dump.md
 # in codeclarity-dev.
 #
 # Usage:
 #   sh restore-dump.sh verify
 #   sh restore-dump.sh restore <dump> <database> [pg_restore options]
+#   sh restore-dump.sh restore-if-empty   (verifies, then restores knowledge and config if knowledge has no tables)
 # In the db container: sh -c "$(cat restore-dump.sh)" restore-dump <command> [args]
-# Env: DUMP_DIR (default /dump). restore uses POSTGRES_PASSWORD as the postgres password.
+# Env: DUMP_DIR (default /dump). Restores use POSTGRES_PASSWORD as the postgres password (PGHOST for
+# another host); restore-if-empty makes PG_KNOWLEDGE_ROLE (cc_knowledge) and PG_CONFIG_ROLE (cc_api) owners.
 #
-# Without knowledge-manifest.json (the dump layout before manifests), whole dumps restore
-# unverified with a warning, and split parts are refused.
+# Without knowledge-manifest.json (the dump layout before manifests), dumps restore unverified
+# with a warning. Split dump parts (*.dump.part-*) are always refused: dumps ship whole.
 
 set -u
 
@@ -37,11 +39,12 @@ has_manifest() {
 	[ -f "$DUMP_DIR/$MANIFEST" ]
 }
 
-has_parts() {
-	for part in "$DUMP_DIR/$1".part-*; do
-		[ -e "$part" ] && return 0
+# Fails if any split dump part is present.
+refuse_parts() {
+	for part in "$DUMP_DIR"/*.dump.part-*; do
+		[ -e "$part" ] && fail "${part##*/} is a split dump part; dumps ship whole, refusing to restore"
 	done
-	return 1
+	return 0
 }
 
 # Checks the manifest is one this script reads and that its checksum list is there.
@@ -61,12 +64,7 @@ manifest_files() {
 		sed 's/^"name":"\([^"]*\)".*"sha256":"\([0-9a-f]*\)"$/\1 \2/'
 }
 
-# Prints the parts of a split dump, in the order the checksum list gives them.
-listed_parts() {
-	cut -d' ' -f3 "$DUMP_DIR/$SUMS" | grep "^$1\.part-" || true
-}
-
-# Prints the manifest's whole-file SHA-256 of a dump, or nothing if it does not list it.
+# Prints the manifest's SHA-256 of a dump, or nothing if it does not list it.
 manifest_sha() {
 	manifest_files | while read -r name whole; do
 		[ "$name" = "$1" ] && echo "$whole"
@@ -74,10 +72,8 @@ manifest_sha() {
 }
 
 verify() {
+	refuse_parts
 	if ! has_manifest; then
-		for f in "$DUMP_DIR"/*.dump.part-*; do
-			[ -e "$f" ] && fail "${f##*/} is a split dump part but there is no $MANIFEST, refusing to restore"
-		done
 		echo "restore-dump: warning, no $MANIFEST in $DUMP_DIR (old dump layout); dumps are not verified" >&2
 		return 0
 	fi
@@ -97,24 +93,9 @@ verify() {
 		fi
 	done <"$DUMP_DIR/$SUMS"
 
-	for f in "$DUMP_DIR"/*.dump.part-*; do
-		[ -e "$f" ] || continue
-		grep -q "  ${f##*/}\$" "$DUMP_DIR/$SUMS" || {
-			echo "restore-dump: ${f##*/}: not listed in $SUMS" >&2
-			bad=1
-		}
-	done
-
 	files=$(manifest_files)
-	while read -r name whole; do
-		parts=$(listed_parts "$name")
-		if [ -n "$parts" ]; then
-			# shellcheck disable=SC2086 # splits the part list into file names
-			got=$(cd "$DUMP_DIR" && cat $parts 2>/dev/null | sha)
-		else
-			got=$(grep "  $name\$" "$DUMP_DIR/$SUMS" | cut -d' ' -f1)
-		fi
-		if [ "$got" != "$whole" ]; then
+	while read -r name want; do
+		if [ "$(grep "  $name\$" "$DUMP_DIR/$SUMS" | cut -d' ' -f1)" != "$want" ]; then
 			echo "restore-dump: $name: FAILED, does not match the SHA-256 in $MANIFEST" >&2
 			bad=1
 		fi
@@ -126,43 +107,32 @@ EOF
 	echo "restore-dump: every file matches $MANIFEST"
 }
 
-# Sets source to a verified file holding the whole dump, reassembling split dumps into staging.
+# Sets source to the dump's file, checked against the manifest when there is one.
 prepare() {
 	name="$1.dump"
 	source="$DUMP_DIR/$name"
+	refuse_parts
+	[ -f "$source" ] || fail "$source not found"
 	if ! has_manifest; then
-		has_parts "$name" && fail "$name is split but there is no $MANIFEST, refusing to restore"
-		[ -f "$source" ] || fail "$source not found"
 		echo "restore-dump: warning, no $MANIFEST (old dump layout); $name is not verified" >&2
 		return 0
 	fi
 	check_manifest
-	whole=$(manifest_sha "$name")
-	if [ -z "$whole" ]; then
-		[ -f "$source" ] || fail "$source not found"
+	want=$(manifest_sha "$name")
+	if [ -z "$want" ]; then
 		echo "restore-dump: $name is not in $MANIFEST, restoring it unverified"
 		return 0
 	fi
-	parts=$(listed_parts "$name")
-	for f in "$DUMP_DIR/$name".part-*; do
-		[ -e "$f" ] || continue
-		grep -q "  ${f##*/}\$" "$DUMP_DIR/$SUMS" || fail "${f##*/} is not listed in $SUMS, refusing to restore"
-	done
-	if [ -n "$parts" ]; then
-		staging="$DUMP_DIR/.restore.$$"
-		mkdir "$staging" || fail "cannot create $staging"
-		trap 'rm -rf "$staging"' EXIT
-		source="$staging/$name"
-		# shellcheck disable=SC2086 # splits the part list into file names
-		echo "restore-dump: reassembling $name from $(echo $parts | wc -w | tr -d ' ') parts"
-		# shellcheck disable=SC2086 # splits the part list into file names
-		(cd "$DUMP_DIR" && cat $parts) >"$source" || fail "cannot reassemble $name"
-	elif [ ! -f "$source" ]; then
-		fail "$source not found"
-	fi
-	[ "$(sha "$source")" = "$whole" ] ||
+	[ "$(sha "$source")" = "$want" ] ||
 		fail "$name does not match the SHA-256 in $MANIFEST, refusing to restore"
 	echo "restore-dump: $name matches $MANIFEST"
+}
+
+# Creates a database when it does not exist yet.
+ensure_db() {
+	if ! psql -w -U postgres -d postgres -XtA -c "SELECT 1 FROM pg_database WHERE datname='$1'" | grep -q 1; then
+		createdb -w -U postgres "$1" || fail "cannot create database $1"
+	fi
 }
 
 restore() {
@@ -174,12 +144,58 @@ restore() {
 	esac
 	prepare "$dump"
 	export PGPASSWORD="${POSTGRES_PASSWORD:-}"
-	if ! psql -w -U postgres -d postgres -XtA -c "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1; then
-		createdb -w -U postgres "$db" || fail "cannot create database $db"
-	fi
+	ensure_db "$db"
 	echo "restore-dump: restoring $dump into $db"
 	pg_restore -w -U postgres -d "$db" "$@" "$source" || fail "pg_restore of $dump into $db failed"
 	echo "restore-dump: restored $dump into $db"
+}
+
+# Prints how many tables a database holds outside the system schemas, failing if it cannot tell.
+table_count() {
+	count=$(psql -w -U postgres -d "$1" -XtA -c "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind IN ('r', 'p') AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname NOT LIKE 'pg_toast%'")
+	case "$count" in
+	'' | *[!0-9]*) fail "cannot read the $1 database" ;;
+	esac
+	echo "$count"
+}
+
+# Restores a dump in one transaction with every object owned by a role. Objects the Postgres init
+# script already made (extensions, the pgbouncer auth function) are left out of the restore.
+restore_owned() {
+	dump=$1 db=$2 role=$3
+	prepare "$dump"
+	ensure_db "$db"
+	list=$(mktemp) || fail "cannot create a temporary file"
+	pg_restore -l "$source" | grep -v -e ' EXTENSION ' -e ' pgbouncer_get_auth' >"$list" || {
+		rm -f "$list"
+		fail "cannot list $dump"
+	}
+	echo "restore-dump: restoring $dump into $db as $role"
+	pg_restore -w -U postgres --no-owner --no-acl --role="$role" --single-transaction -L "$list" -d "$db" "$source" || {
+		rm -f "$list"
+		fail "pg_restore of $dump into $db failed, $db was left as it was"
+	}
+	rm -f "$list"
+	echo "restore-dump: restored $dump into $db"
+}
+
+# The knowledge restore setup job: restores knowledge and config only when knowledge has no tables.
+restore_if_empty() {
+	export PGPASSWORD="${POSTGRES_PASSWORD:-}"
+	tables=$(table_count knowledge) || exit 1
+	if [ "$tables" -gt 0 ]; then
+		echo "restore-dump: knowledge already holds $tables tables, nothing to restore"
+		return 0
+	fi
+	has_manifest || fail "no $MANIFEST in $DUMP_DIR, refusing to restore"
+	verify
+	tables=$(table_count config) || exit 1
+	if [ "$tables" = 0 ]; then
+		restore_owned config config "${PG_CONFIG_ROLE:-cc_api}"
+	else
+		echo "restore-dump: config already has tables, keeping it"
+	fi
+	restore_owned knowledge knowledge "${PG_KNOWLEDGE_ROLE:-cc_knowledge}"
 }
 
 command=${1:-}
@@ -187,5 +203,6 @@ command=${1:-}
 case "$command" in
 verify) verify ;;
 restore) restore "$@" ;;
-*) fail "usage: restore-dump.sh verify | restore <dump> <database> [pg_restore options]" ;;
+restore-if-empty) restore_if_empty ;;
+*) fail "usage: restore-dump.sh verify | restore <dump> <database> [pg_restore options] | restore-if-empty" ;;
 esac
