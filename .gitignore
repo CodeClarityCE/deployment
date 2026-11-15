@@ -1,4 +1,5 @@
 .DS_Store
 .env
-dump/.dump-knowledge.*
-dump/.restore.*
+# Output of make dump-knowledge in the umbrella; dumps ship as the knowledge-dump image.
+dump/*
+!dump/.gitkeep
