@@ -55,8 +55,8 @@ Nothing else is needed on the host: no git, git-lfs, openssl or installer script
 
 ## ⚡ Install
 
-1. Get this directory (a release of this repository, or a clone of it).
-2. Copy `.env.example` to `.env` and set `DOMAIN` to the name the instance is reached at. `DOMAIN=localhost` serves HTTPS from Caddy's internal certificate authority, so your browser will ask you to trust it.
+1. Download `docker-compose.yaml` and `env.example` from the [latest release](https://github.com/CodeClarityCE/deployment/releases) into an empty directory. Every image in that Compose file is pinned by digest, so every install of a release runs the same images. To check where the files came from: `gh attestation verify docker-compose.yaml -R CodeClarityCE/deployment` (and the same for `env.example`).
+2. Copy `env.example` to `.env`. It already sets `CODECLARITY_VERSION` to the release. Set `DOMAIN` to the name the instance is reached at. `DOMAIN=localhost` serves HTTPS from Caddy's internal certificate authority, so your browser will ask you to trust it.
 3. Start the stack:
 
    ```bash
@@ -96,12 +96,13 @@ The knowledge database is restored from the `codeclarityce/knowledge-dump` image
 ## 🔄 Upgrade and Maintain
 
 - `docker compose up -d`: install, upgrade or start. Migrations run once, before the API and services start.
+- Upgrade: replace `docker-compose.yaml` with the new release's, set `CODECLARITY_VERSION` in `.env` to that release, then `docker compose up -d`. Users, analyses and secrets are kept, and the new migrations run first. The stack does not start while `.env` names another release than the Compose file; the `version-check` job's log says which.
 - `docker compose down`: stop the stack. Data and secrets stay in their volumes.
 - `docker compose logs -f <service>`: follow a service's logs.
 - `docker compose pull`: download the images again.
 
 > [!NOTE]
-> Grafana alerts on failed or stale knowledge sources. Alerts show in Grafana until you add a contact point there. If you override `KNOWLEDGE_STALE_AFTER_HOURS_*` on the API, change the thresholds in `config/grafana/provisioning/alerting/knowledge-sources.yml` to match.
+> Grafana alerts on failed or stale knowledge sources. Alerts show in Grafana until you add a contact point there. If you override `KNOWLEDGE_STALE_AFTER_HOURS_*` on the API, change the thresholds in the `grafana-alerting` config in `docker-compose.yaml` to match.
 
 > [!CAUTION]
 > Your data is stored in Docker volumes and persists between restarts. Back up the volumes, including `codeclarity_secrets`, before major updates.
