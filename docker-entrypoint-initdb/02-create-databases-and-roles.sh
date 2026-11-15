@@ -21,7 +21,7 @@ EOSQL
 done
 
 # Create application roles with least-privilege access
-# Passwords use env vars set in .env.database, with fallback to POSTGRES_PASSWORD
+# Passwords come from env vars (the secrets job in production), falling back to POSTGRES_PASSWORD
 # Uses psql -v variable binding (:'var') to avoid SQL injection from passwords
 CC_API_PASSWORD="${CC_API_PASSWORD:-$POSTGRES_PASSWORD}"
 CC_SERVICE_PASSWORD="${CC_SERVICE_PASSWORD:-$POSTGRES_PASSWORD}"
