@@ -143,6 +143,8 @@ for db in codeclarity knowledge plugins config; do
             WHERE rolname = p_usename AND rolcanlogin; $$;
         REVOKE ALL ON FUNCTION public.pgbouncer_get_auth(TEXT) FROM PUBLIC;
         GRANT EXECUTE ON FUNCTION public.pgbouncer_get_auth(TEXT) TO pgbouncer_auth;
+        -- The schema-wide REVOKE above also took away the schema the function lives in.
+        GRANT USAGE ON SCHEMA public TO pgbouncer_auth;
 EOSQL
 done
 
