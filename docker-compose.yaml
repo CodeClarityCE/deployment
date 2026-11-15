@@ -338,8 +338,15 @@ services:
   frontend:
     image: codeclarityce/frontend
     restart: always
+    # TLS follows DOMAIN: Caddy's internal CA for localhost, ACME for a public name, or the
+    # operator's certificate when TLS_CERT and TLS_KEY are set in .env.
     environment:
-      - SERVER_NAME=${DOMAIN:-localhost}
+      DOMAIN: ${DOMAIN:-localhost}
+      CADDY_TLS: ${TLS_CERT:+tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem}
+      CADDY_ACME_CA: ${ACME_CA:+acme_ca ${ACME_CA:-}}
+    # The public certificate as a label, so a renewed one recreates the container.
+    labels:
+      io.codeclarity.tls-cert: ${TLS_CERT:-}
     ports:
       # HTTP
       - target: 80
@@ -364,6 +371,11 @@ services:
     configs:
       - source: caddyfile
         target: /etc/caddy/Caddyfile
+      - source: tls-cert
+        target: /etc/caddy/tls/cert.pem
+      - source: tls-key
+        target: /etc/caddy/tls/key.pem
+        mode: 0400
     volumes:
       - caddy_data:/data
       - caddy_config:/config
@@ -701,6 +713,13 @@ configs:
     file: ./config/rabbitmq-definitions.json
   caddyfile:
     file: ./config/Caddyfile
+  # The operator's certificate and key from .env, empty when unset (Caddy then ignores them).
+  tls-cert:
+    content: |
+      ${TLS_CERT:-}
+  tls-key:
+    content: |
+      ${TLS_KEY:-}
   prometheus:
     file: ./config/prometheus.yml
   grafana-datasource-prometheus:

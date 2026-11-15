@@ -37,6 +37,7 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
   - [📋 System Requirements](#-system-requirements)
   - [⚡ Install](#-install)
   - [👤 Create the First User](#-create-the-first-user)
+  - [🔒 TLS](#-tls)
   - [🔐 Secrets](#-secrets)
   - [📚 Knowledge Database](#-knowledge-database)
   - [🔄 Upgrade and Maintain](#-upgrade-and-maintain)
@@ -56,7 +57,7 @@ Nothing else is needed on the host: no git, git-lfs, openssl or installer script
 ## ⚡ Install
 
 1. Download `docker-compose.yaml` and `env.example` from the [latest release](https://github.com/CodeClarityCE/deployment/releases) into an empty directory. Every image in that Compose file is pinned by digest, so every install of a release runs the same images. To check where the files came from: `gh attestation verify docker-compose.yaml -R CodeClarityCE/deployment` (and the same for `env.example`).
-2. Copy `env.example` to `.env`. It already sets `CODECLARITY_VERSION` to the release. Set `DOMAIN` to the name the instance is reached at. `DOMAIN=localhost` serves HTTPS from Caddy's internal certificate authority, so your browser will ask you to trust it.
+2. Copy `env.example` to `.env`. It already sets `CODECLARITY_VERSION` to the release. Set `DOMAIN` to the name the instance is reached at. HTTPS follows it (see [TLS](#-tls)).
 3. Start the stack:
 
    ```bash
@@ -76,6 +77,16 @@ docker compose run --rm api create-user --email you@example.com --name "Your Nam
 ```
 
 The user is activated and verified, so no mail server is needed, and owns a personal organization. Running it again for an existing email changes nothing; add `--reset-password` to set a new password. To keep the password out of your shell history, pass it as `CREATE_USER_PASSWORD` instead: `docker compose run --rm -e CREATE_USER_PASSWORD api create-user ...`. `CREATE_USER_EMAIL` and `CREATE_USER_NAME` in `.env` are defaults for the other two flags.
+
+## 🔒 TLS
+
+Caddy, in the `frontend` service, serves HTTPS for `DOMAIN` with no extra steps:
+
+- `DOMAIN=localhost`: a certificate from Caddy's internal certificate authority, so your browser asks you to trust it. Its root is in the `codeclarity_caddy_data` volume: `docker compose exec frontend cat /data/caddy/pki/authorities/local/root.crt`.
+- A public name: a certificate from Let's Encrypt (or ZeroSSL), renewed automatically. DNS for the name must point at this host, and ports 80 and 443 must be reachable from the internet.
+- Your own certificate: set `TLS_CERT` (full chain) and `TLS_KEY` in `.env` as PEM in double quotes, both or neither, then `docker compose up -d`. Caddy serves them for `DOMAIN` and does not request a certificate. Do the same after renewing them. Compose copies them into the container from `.env`; no file is mounted from the host.
+
+To try a public name without hitting Let's Encrypt's rate limits, set `ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory`, run `docker compose up -d`, and check that `docker compose logs frontend` shows `certificate obtained successfully` and that `curl -kv https://<DOMAIN>/ 2>&1 | grep issuer` names a staging issuer (`(STAGING)`). Then remove `ACME_CA` and run `docker compose up -d` again; Caddy gets a trusted certificate.
 
 ## 🔐 Secrets
 
