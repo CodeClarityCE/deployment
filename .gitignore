@@ -1,7 +1,4 @@
-jwt
-certs
 .DS_Store
-dump/*.list
-services.img
+.env
 dump/.dump-knowledge.*
 dump/.restore.*

@@ -1,24 +1,151 @@
+# CodeClarity production stack. Install and upgrade are both `docker compose up -d`:
+# setup runs as one-shot jobs (secrets, database init, knowledge restore, migrate,
+# default analyzer), each doing nothing when its work is already done.
+# Settings come from .env (see .env.example); everything else has a default here.
+# Needs Docker Compose 2.24 or later.
 name: codeclarity
 
+x-postgres-image: &postgres-image postgres:18.6-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+x-rabbitmq-image: &rabbitmq-image rabbitmq:4.3.6-management-alpine@sha256:1aab4d911053f3ee4ff9bb231f5192ebd6a12281f8044910256a667fdb04108d
+
+# Loads the generated secrets mounted at /run/codeclarity into the environment, then runs the command.
+x-with-secrets: &with-secrets
+  - /bin/sh
+  - -c
+  - set -a && . /run/codeclarity/env && set +a && exec "$$@"
+  - with-secrets
+
+# Connection settings every Go service and plugin shares; each reads its role password from its secrets.
+x-backend-env: &backend-env
+  PG_DB_HOST: pgbouncer
+  PG_DB_PORT: "6432"
+  PG_DB_NAME: codeclarity
+  PG_DB_SSLMODE: verify-ca
+  PG_DB_SSLROOTCERT: /run/codeclarity/ca.crt
+  DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:-15}
+  DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:-3}
+  DB_CONN_MAX_LIFETIME_SECONDS: ${DB_CONN_MAX_LIFETIME_SECONDS:-300}
+  DB_CONN_MAX_IDLE_SECONDS: ${DB_CONN_MAX_IDLE_SECONDS:-60}
+  AMQP_ANALYSES_QUEUE: api_request
+  AMQP_PROTOCOL: amqps
+  AMQP_HOST: rabbitmq
+  AMQP_PORT: "5671"
+  AMQP_USER: codeclarity
+  AMQP_SSLMODE: verify-ca
+  AMQP_SSLROOTCERT: /run/codeclarity/ca.crt
+
+# Settings of the Go services (not the plugins).
+x-service-env: &service-env
+  <<: *backend-env
+  PG_DB_USER: cc_service
+  DOWNLOAD_PATH: /private
+  NPM_URL: https://registry.npmjs.org/
+  NVD_API_KEY: ${NVD_API_KEY:-}
+  VULNERABILITY_LOOKUP_API_KEY: ${VULNERABILITY_LOOKUP_API_KEY:-}
+
+x-plugin-env: &plugin-env
+  <<: *backend-env
+  PG_DB_USER: cc_plugin
+
+# The API image's settings. Its secrets come from env/.env.prod, which the API loads itself.
+x-api-env: &api-env
+  ENV: prod
+  PORT: "3000"
+  PLATFORM_NAME: CodeClarity
+  WEB_HOST: https://${DOMAIN:-localhost}
+  HOST: https://${DOMAIN:-localhost}/api
+  DOWNLOAD_PATH: /home/codeclarity/private
+  REQUIRE_ACCOUNT_VERIFICATION: "true"
+  GITHUB_AUTH_CLIENT_ID: ${GITHUB_AUTH_CLIENT_ID:-}
+  GITHUB_AUTH_CLIENT_SECRET: ${GITHUB_AUTH_CLIENT_SECRET:-}
+  GITHUB_CALLBACK: https://${DOMAIN:-localhost}/api/auth/github/callback
+  GITHUB_AUTH_CALLBACK: https://${DOMAIN:-localhost}/auth/github/callback
+  GITLAB_AUTH_CLIENT_ID: ${GITLAB_AUTH_CLIENT_ID:-}
+  GITLAB_AUTH_CLIENT_SECRET: ${GITLAB_AUTH_CLIENT_SECRET:-}
+  GITLAB_AUTH_HOST: ${GITLAB_AUTH_HOST:-https://gitlab.com}
+  GITLAB_CALLBACK: https://${DOMAIN:-localhost}/api/auth/gitlab/callback
+  GITLAB_AUTH_CALLBACK: https://${DOMAIN:-localhost}/auth/gitlab/callback
+  CLICKUP_CLIENT_ID: ${CLICKUP_CLIENT_ID:-}
+  CLICKUP_CLIENT_SECRET: ${CLICKUP_CLIENT_SECRET:-}
+  MAIL_HOST: ${MAIL_HOST:-localhost}
+  MAIL_PORT: ${MAIL_PORT:-465}
+  MAIL_AUTH_USER: ${MAIL_AUTH_USER:-noreply@localhost}
+  MAIL_AUTH_PASSWORD: ${MAIL_AUTH_PASSWORD:-}
+  MAIL_DEFAULT_FROM: ${MAIL_DEFAULT_FROM:-noreply@localhost}
+  PG_DB_USER: cc_api
+  PG_DB_HOST: pgbouncer
+  PG_DB_PORT: "6432"
+  PG_DB_NAME: codeclarity
+  PG_DB_SSLMODE: verify-ca
+  PG_DB_SSLROOTCERT: /home/codeclarity/app/env/ca.crt
+  PG_DB_POOL_MAX: ${PG_DB_POOL_MAX:-10}
+  AMQP_ANALYSES_QUEUE: api_request
+  AMQP_PROTOCOL: amqps
+  AMQP_HOST: rabbitmq
+  AMQP_PORT: "5671"
+  AMQP_USER: codeclarity
+  AMQP_SSLMODE: verify-ca
+  AMQP_SSLROOTCERT: /home/codeclarity/app/env/ca.crt
+
+# What every Go service and plugin waits for.
+x-backend-depends: &backend-depends
+  migrate:
+    condition: service_completed_successfully
+  rabbitmq:
+    condition: service_healthy
+  pgbouncer:
+    condition: service_started
+
 services:
+  # One-shot job: generates every secret (role passwords, broker password, JWT keys,
+  # internal certificates) into the secrets volume, never overwriting one that exists,
+  # and gives each service its own volume with only what it reads.
+  generate-secrets:
+    image: *rabbitmq-image
+    restart: "no"
+    entrypoint: ["sh", "/usr/local/bin/generate-secrets.sh", "/secrets"]
+    configs:
+      - source: generate-secrets
+        target: /usr/local/bin/generate-secrets.sh
+    volumes:
+      - secrets:/secrets
+      - secrets-db:/secrets/db
+      - secrets-pgbouncer:/secrets/pgbouncer
+      - secrets-rabbitmq:/secrets/rabbitmq
+      - secrets-knowledge-restore:/secrets/knowledge-restore
+      - secrets-migrate:/secrets/migrate
+      - secrets-api:/secrets/api
+      - secrets-api-jwt:/secrets/api-jwt
+      - secrets-service:/secrets/service
+      - secrets-plugin:/secrets/plugin
+      - secrets-knowledge:/secrets/knowledge
+      - secrets-grafana:/secrets/grafana
+      - secrets-exporter:/secrets/exporter
+
   rabbitmq:
     restart: always
-    image: rabbitmq:4.3.6-management-alpine@sha256:1aab4d911053f3ee4ff9bb231f5192ebd6a12281f8044910256a667fdb04108d
+    image: *rabbitmq-image
     hostname: "codeclarity"
-    env_file:
-      - .env.amqp
     environment:
       - RABBITMQ_ENABLED_PLUGINS_FILE=/etc/rabbitmq/enabled_plugins
-    command: |
-      bash -c '
+    command:
+      - bash
+      - -c
+      - |
+        set -a && . /run/codeclarity/env && set +a &&
         rabbitmq-plugins enable rabbitmq_management rabbitmq_prometheus --offline &&
         exec docker-entrypoint.sh rabbitmq-server
-      '
+    configs:
+      - source: rabbitmq-conf
+        target: /etc/rabbitmq/rabbitmq.conf
+      - source: rabbitmq-definitions
+        target: /etc/rabbitmq/definitions.json
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq/
-      - ./certs/rabbitmq:/etc/rabbitmq/certs:ro
-      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
-      - ./config/rabbitmq-definitions.json:/etc/rabbitmq/definitions.json:ro
+      - secrets-rabbitmq:/run/codeclarity:ro
+    depends_on:
+      generate-secrets:
+        condition: service_completed_successfully
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 10s
@@ -27,14 +154,15 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 1G
         reservations:
-          cpus: '1'
+          cpus: "1"
           memory: 500M
 
+  # Its init script creates the databases and roles on an empty data volume.
   db:
-    image: postgres:18.6-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    image: *postgres-image
     restart: always
     # set shared memory limit when using docker-compose
     shm_size: 128mb
@@ -43,23 +171,31 @@ services:
     #   Client side: each service/plugin pool is bounded by DB_MAX_OPEN_CONNS (default 15)
     #   and the API by PG_DB_POOL_MAX (default 10), but pgbouncer multiplexes them so
     #   replica count no longer drives server connections. max_connections=200 is headroom only.
+    entrypoint: *with-secrets
+    command:
+      - docker-entrypoint.sh
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+    configs:
+      - source: initdb
+        target: /docker-entrypoint-initdb.d/02-create-databases-and-roles.sh
+      - source: postgresql-conf
+        target: /etc/postgresql/postgresql.conf
+      - source: pg-hba
+        target: /etc/postgresql/pg_hba.conf
     volumes:
-      - ./docker-entrypoint-initdb:/docker-entrypoint-initdb.d/
-      - ./dump:/dump
       - db_data_container:/var/lib/postgresql/18
-      - ./config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
-    command: >
-      postgres
-        -c config_file=/etc/postgresql/postgresql.conf
-        -c hba_file=/etc/postgresql/pg_hba.conf
-    env_file:
-      - .env.database
+      - secrets-db:/run/codeclarity:ro
     environment:
       - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
+    depends_on:
+      generate-secrets:
+        condition: service_completed_successfully
     # Checks over TCP, which the first-run init server does not listen on, so the
-    # migrate job only starts once the init script has created the databases and roles.
+    # setup jobs only start once the init script has created the databases and roles.
     healthcheck:
       test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
       interval: 2s
@@ -67,77 +203,91 @@ services:
       retries: 60
 
   # Transaction-pooling connection pooler. Application services connect here
-  # (PG_DB_HOST=pgbouncer, PG_DB_PORT=6432 in .env.database) instead of directly
-  # to Postgres. Config + multi-role auth_query are in ./config/pgbouncer.ini.
-  # Prereqs for a deployment: (1) regenerate certs so the SAN includes "pgbouncer"
-  # (make setup-pg-certs), (2) set a real password in BOTH .env.database
-  # (PGBOUNCER_AUTH_PASSWORD) and ./config/userlist.txt.
+  # instead of directly to Postgres. Config and multi-role auth_query: config/pgbouncer.ini.
   pgbouncer:
     image: edoburu/pgbouncer:v1.25.2-p0@sha256:7d7a27d9e90985cab5cf42256f5c13a3120baa4b055b69df37beb272b89b2340
     restart: always
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
+    configs:
+      - source: pgbouncer-ini
+        target: /etc/pgbouncer/pgbouncer.ini
     volumes:
-      - ./config/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
-      - ./config/userlist.txt:/etc/pgbouncer/userlist.txt:ro
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-pgbouncer:/run/codeclarity:ro
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 256M
         reservations:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 128M
 
-  # One-shot job: applies pending migrations to every database, straight on
-  # Postgres (not pgbouncer) as PG_DB_ADMIN_USER, then exits. The API and every
-  # service wait for it to succeed.
-  migrate:
-    image: codeclarityce/api
-    command: ["node", "dist/scripts/migrate.js"]
-    env_file:
-      - .env.api
-      - .env.database
-    environment:
-      - PG_DB_HOST=db
-      - PG_DB_PORT=5432
+  # One-shot job: restores knowledge and config from the knowledge dump image when the
+  # knowledge database has no tables, then exits. A dump failing its manifest fails it,
+  # which keeps the app services stopped. KNOWLEDGE_DUMP_IMAGE swaps in another dump.
+  knowledge-restore:
+    image: ${KNOWLEDGE_DUMP_IMAGE:-codeclarityce/knowledge-dump:2026-11-11}
     restart: "no"
+    entrypoint: *with-secrets
+    command: ["sh", "/usr/local/bin/restore-dump.sh", "restore-if-empty"]
+    environment:
+      - PGHOST=db
+      - PGPORT=5432
+      - PGSSLMODE=verify-ca
+      - PGSSLROOTCERT=/run/codeclarity/ca.crt
     volumes:
-      - .env.api:/home/codeclarity/app/env/.env.prod
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-knowledge-restore:/run/codeclarity:ro
     depends_on:
       db:
         condition: service_healthy
+
+  # One-shot job: applies pending migrations to every database, straight on
+  # Postgres (not pgbouncer) as postgres, owned by each database's role, then exits.
+  # The API and every service wait for it to succeed.
+  migrate:
+    image: codeclarityce/api
+    command: ["node", "dist/scripts/migrate.js"]
+    restart: "no"
+    environment:
+      <<: *api-env
+      PG_DB_HOST: db
+      PG_DB_PORT: "5432"
+      PG_DB_ADMIN_USER: postgres
+    volumes:
+      - secrets-migrate:/home/codeclarity/app/env:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      knowledge-restore:
+        condition: service_completed_successfully
 
   # One-shot job: creates the global default analyzer unless a global analyzer
   # of that name exists, then exits. Connects as the API's role, straight on Postgres.
   default-analyzer:
     image: codeclarityce/api
     command: ["node", "dist/scripts/create-default-analyzer.js"]
-    env_file:
-      - .env.api
-      - .env.database
-    environment:
-      - PG_DB_HOST=db
-      - PG_DB_PORT=5432
     restart: "no"
+    environment:
+      <<: *api-env
+      PG_DB_HOST: db
+      PG_DB_PORT: "5432"
     volumes:
-      - .env.api:/home/codeclarity/app/env/.env.prod
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-api:/home/codeclarity/app/env:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
 
+  # Also runs `create-user`: docker compose run --rm api create-user --email ... --name ...
+  # (password from --password or CREATE_USER_PASSWORD).
   api:
     image: codeclarityce/api
-    env_file:
-      - .env.api
-      - .env.mail
-      - .env.amqp
-      - .env.database
     restart: always
+    environment:
+      <<: *api-env
+      CREATE_USER_EMAIL: ${CREATE_USER_EMAIL:-}
+      CREATE_USER_NAME: ${CREATE_USER_NAME:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -145,27 +295,26 @@ services:
         condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
-      db:
+      pgbouncer:
         condition: service_started
     volumes:
-      - ./jwt:/home/codeclarity/app/jwt
-      - .env.api:/home/codeclarity/app/env/.env.prod
+      - secrets-api:/home/codeclarity/app/env:ro
+      - secrets-api-jwt:/home/codeclarity/app/jwt:ro
       - projects:/home/codeclarity/private
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 1G
         reservations:
-          cpus: '1'
+          cpus: "1"
           memory: 500M
 
   frontend:
     image: codeclarityce/frontend
-    env_file:
-      - .env.frontend
     restart: always
+    environment:
+      - SERVER_NAME=${DOMAIN:-localhost}
     ports:
       # HTTP
       - target: 80
@@ -187,349 +336,252 @@ services:
       - target: 3001
         published: 3001
         protocol: tcp
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
     volumes:
       - caddy_data:/data
       - caddy_config:/config
-      - ./config/Caddyfile:/etc/caddy/Caddyfile:ro
-      # Uncomment the following line to use your own certificates
-      # - ./certs:/etc/caddy/certs:ro
+    depends_on:
+      - api
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 2G
         reservations:
-          cpus: '1'
+          cpus: "1"
           memory: 500M
 
   service-dispatcher:
     image: codeclarityce/service-dispatcher
     restart: always
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_started
-    env_file:
-      - .env.amqp
-      - .env.database
-      - .env.codeclarity
+    entrypoint: *with-secrets
+    command: ["./plugin"]
+    environment: *service-env
+    depends_on: *backend-depends
     volumes:
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-service:/run/codeclarity:ro
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 1G
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 500M
 
   service-downloader:
     image: codeclarityce/service-downloader
     restart: always
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_started
-    env_file:
-      - .env.amqp
-      - .env.database
-      - .env.codeclarity
+    entrypoint: *with-secrets
+    command: ["./plugin"]
+    environment: *service-env
+    depends_on: *backend-depends
     volumes:
       - projects:/private
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-service:/run/codeclarity:ro
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 1G
         reservations:
-          cpus: '1'
+          cpus: "1"
           memory: 500M
 
   service-follower:
     image: codeclarityce/service-package-follower
     restart: always
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_started
-    env_file:
-      - .env.amqp
-      - .env.database
-      - .env.codeclarity
+    entrypoint: *with-secrets
+    command: ["./plugin"]
+    environment: *service-env
+    depends_on: *backend-depends
     volumes:
       - projects:/private
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-service:/run/codeclarity:ro
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 1G
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 500M
 
   service-scheduler:
     image: codeclarityce/service-scheduler
     restart: always
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_started
-    env_file:
-      - .env.amqp
-      - .env.database
-      - .env.codeclarity
+    entrypoint: *with-secrets
+    command: ["./scheduler"]
+    environment: *service-env
+    depends_on: *backend-depends
     volumes:
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-service:/run/codeclarity:ro
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 500M
         reservations:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 250M
 
   service-notifier:
     image: codeclarityce/service-notifier
     restart: always
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_started
-    env_file:
-      - .env.amqp
-      - .env.database
-      - .env.codeclarity
+    entrypoint: *with-secrets
+    command: ["./plugin"]
+    environment: *service-env
+    depends_on: *backend-depends
     volumes:
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-service:/run/codeclarity:ro
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 500M
         reservations:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 250M
+
+  # Keeps the knowledge database current. Runs without an NVD key, at NVD's lower rate.
+  service-knowledge:
+    image: codeclarityce/service-knowledge
+    restart: always
+    entrypoint: *with-secrets
+    command: ["./plugin", "-daemon"]
+    environment:
+      <<: *service-env
+      PG_DB_USER: cc_knowledge
+    depends_on: *backend-depends
+    volumes:
+      - secrets-knowledge:/run/codeclarity:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 3G
+        reservations:
+          cpus: "1"
+          memory: 2G
 
   plugin-js-sbom:
     image: codeclarityce/plugin-js-sbom
     restart: always
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_started
-    env_file:
-      - .env.amqp
-      - .env.database
-      - .env.plugin
+    entrypoint: *with-secrets
+    command: ["./plugin"]
+    environment: *plugin-env
+    depends_on: *backend-depends
     volumes:
       - projects:/private
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-plugin:/run/codeclarity:ro
     deploy:
       mode: replicated
       replicas: 1
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 500M
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 250M
 
   plugin-license-finder:
     image: codeclarityce/plugin-license-finder
     restart: always
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_started
-    env_file:
-      - .env.amqp
-      - .env.database
-      - .env.plugin
+    entrypoint: *with-secrets
+    command: ["./plugin"]
+    environment: *plugin-env
+    depends_on: *backend-depends
     volumes:
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-plugin:/run/codeclarity:ro
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 500M
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 250M
-
-  # plugin-js-patching:
-  #   image: codeclarityce/plugin-js-patching
-  #   restart: always
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #     db:
-  #       condition: service_started
-  #     adminer:
-  #       condition: service_started
-  #   env_file:
-  #     - .env.amqp
-  #     - .env.database
-  #     - .env.plugin
-  #   volumes:
-  #     - projects:/private
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: '4'
-  #         memory: 4G
-  #       reservations:
-  #         cpus: '2'
-  #         memory: 2G
 
   plugin-vuln-finder:
     image: codeclarityce/plugin-vuln-finder
     restart: always
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_started
-    env_file:
-      - .env.amqp
-      - .env.database
-      - .env.plugin
+    entrypoint: *with-secrets
+    command: ["./plugin"]
+    environment: *plugin-env
+    depends_on: *backend-depends
     volumes:
       - projects:/private
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-plugin:/run/codeclarity:ro
     deploy:
       resources:
         limits:
-          cpus: '4'
+          cpus: "4"
           memory: 4G
         reservations:
-          cpus: '2'
+          cpus: "2"
           memory: 2G
 
   plugin-php-sbom:
     image: codeclarityce/plugin-php-sbom
     restart: always
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_started
-    env_file:
-      - .env.amqp
-      - .env.database
-      - .env.plugin
+    entrypoint: *with-secrets
+    command: ["./plugin"]
+    environment: *plugin-env
+    depends_on: *backend-depends
     volumes:
       - projects:/private
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-plugin:/run/codeclarity:ro
     deploy:
       mode: replicated
       replicas: 1
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 500M
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 250M
 
   plugin-codeql:
     image: codeclarityce/plugin-codeql
     platform: linux/amd64 # CodeQL works only on x86 platforms
     restart: always
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_started
-    env_file:
-      - .env.amqp
-      - .env.database
-      - .env.plugin
+    entrypoint: *with-secrets
+    command: ["./plugin"]
+    environment: *plugin-env
+    depends_on: *backend-depends
     volumes:
       - projects:/private
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-plugin:/run/codeclarity:ro
     deploy:
       resources:
         limits:
-          cpus: '4'
+          cpus: "4"
           memory: 4G
         reservations:
-          cpus: '2'
-          memory: 2G
-
-  service-knowledge:
-    image: codeclarityce/service-knowledge
-    restart: always
-    command: ["-daemon"]
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      db:
-        condition: service_started
-    env_file:
-      - .env.amqp
-      - .env.database
-      - .env.codeclarity
-      - .env.knowledge
-    volumes:
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 3G
-        reservations:
-          cpus: '1'
+          cpus: "2"
           memory: 2G
 
   prometheus:
     image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
     container_name: codeclarity-prometheus
     restart: always
+    configs:
+      - source: prometheus
+        target: /etc/prometheus/prometheus.yml
     volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=30d'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--web.enable-lifecycle'
-      - '--web.external-url=http://localhost:9091'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+      - "--web.external-url=http://localhost:9091"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -538,65 +590,130 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 1G
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 512M
 
   grafana:
     image: grafana/grafana:13.2.2@sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0
     container_name: codeclarity-grafana
     restart: always
+    configs:
+      - source: grafana-datasource-prometheus
+        target: /etc/grafana/provisioning/datasources/prometheus.yml
+      - source: grafana-datasource-knowledge
+        target: /etc/grafana/provisioning/datasources/knowledge-postgres.yml
+      - source: grafana-dashboards
+        target: /etc/grafana/provisioning/dashboards/dashboard.yml
+      - source: grafana-alerting
+        target: /etc/grafana/provisioning/alerting/knowledge-sources.yml
+      - source: grafana-dashboard-codeclarity
+        target: /var/lib/grafana/dashboards/codeclarity-improved.json
+      - source: grafana-dashboard-infrastructure
+        target: /var/lib/grafana/dashboards/infrastructure-monitoring.json
+      - source: grafana-dashboard-rabbitmq
+        target: /var/lib/grafana/dashboards/rabbitmq-overview.json
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - ./certs/postgres/ca.crt:/var/lib/postgresql/certs/ca.crt:ro
-    env_file:
-      - .env.grafana
+      - secrets-grafana:/run/codeclarity:ro
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/codeclarity/admin_password
+      - GF_USERS_ALLOW_SIGN_UP=false
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 1G
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 512M
 
   postgres_exporter:
     image: prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
     container_name: codeclarity-postgres-exporter
     restart: always
-    env_file:
-      - .env.database
+    environment:
+      - DATA_SOURCE_URI=db:5432/codeclarity?sslmode=verify-ca&sslrootcert=/run/codeclarity/ca.crt
+      - DATA_SOURCE_USER=cc_exporter
+      - DATA_SOURCE_PASS_FILE=/run/codeclarity/cc_exporter_password
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
-      - ./certs/postgres:/var/lib/postgresql/certs:ro
+      - secrets-exporter:/run/codeclarity:ro
     deploy:
       resources:
         limits:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 128M
         reservations:
-          cpus: '0.1'
+          cpus: "0.1"
           memory: 64M
 
+# Files shipped with this Compose file, mounted read-only; none is edited by the operator.
+configs:
+  generate-secrets:
+    file: ./scripts/generate-secrets.sh
+  initdb:
+    file: ./docker-entrypoint-initdb/02-create-databases-and-roles.sh
+  postgresql-conf:
+    file: ./config/postgresql.conf
+  pg-hba:
+    file: ./config/pg_hba.conf
+  pgbouncer-ini:
+    file: ./config/pgbouncer.ini
+  rabbitmq-conf:
+    file: ./config/rabbitmq.conf
+  rabbitmq-definitions:
+    file: ./config/rabbitmq-definitions.json
+  caddyfile:
+    file: ./config/Caddyfile
+  prometheus:
+    file: ./config/prometheus.yml
+  grafana-datasource-prometheus:
+    file: ./config/grafana/provisioning/datasources/prometheus.yml
+  grafana-datasource-knowledge:
+    file: ./config/grafana/provisioning/datasources/knowledge-postgres.yml
+  grafana-dashboards:
+    file: ./config/grafana/provisioning/dashboards/dashboard.yml
+  grafana-alerting:
+    file: ./config/grafana/provisioning/alerting/knowledge-sources.yml
+  grafana-dashboard-codeclarity:
+    file: ./config/grafana/dashboards/codeclarity-improved.json
+  grafana-dashboard-infrastructure:
+    file: ./config/grafana/dashboards/infrastructure-monitoring.json
+  grafana-dashboard-rabbitmq:
+    file: ./config/grafana/dashboards/rabbitmq-overview.json
+
 volumes:
+  # Generated secrets: the store, and one volume per service holding only what it reads.
+  secrets:
+  secrets-db:
+  secrets-pgbouncer:
+  secrets-rabbitmq:
+  secrets-knowledge-restore:
+  secrets-migrate:
+  secrets-api:
+  secrets-api-jwt:
+  secrets-service:
+  secrets-plugin:
+  secrets-knowledge:
+  secrets-grafana:
+  secrets-exporter:
+
   rabbitmq_data:
 
   caddy_data:
   caddy_config:
 
-  results_db_data_container:
-  results_db_apps_data_container:
   db_data_container:
 
   projects:
