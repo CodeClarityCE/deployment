@@ -11,6 +11,8 @@ dir=${1:-/secrets}
 store="$dir/.store"
 # Postgres (and pgbouncer) run as uid 70 in their Alpine images and need to own their key.
 PG_UID=70
+# RabbitMQ runs as rabbitmq (uid 100, gid 101) in its Alpine image.
+RABBITMQ_OWNER=100:101
 DAYS=3650
 
 fail() {
@@ -127,7 +129,8 @@ chown "$PG_UID:$PG_UID" "$dir/pgbouncer/userlist.txt"
 
 env_file rabbitmq/env "RABBITMQ_DEFAULT_USER=codeclarity" "RABBITMQ_DEFAULT_PASS=$(secret rabbitmq)"
 copy rabbitmq/server.crt rabbitmq.crt
-copy rabbitmq/server.key rabbitmq.key
+copy rabbitmq/server.key rabbitmq.key 600
+chown "$RABBITMQ_OWNER" "$dir/rabbitmq/server.key"
 
 env_file knowledge-restore/env "POSTGRES_PASSWORD=$(secret postgres)"
 env_file migrate/.env.prod "PG_DB_ADMIN_PASSWORD=$(secret postgres)"

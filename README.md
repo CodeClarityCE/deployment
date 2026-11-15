@@ -57,7 +57,7 @@ Nothing else is needed on the host: no git, git-lfs, openssl or installer script
 ## ⚡ Install
 
 1. Download `docker-compose.yaml` and `env.example` from the [latest release](https://github.com/CodeClarityCE/deployment/releases) into an empty directory. Every image in that Compose file is pinned by digest, so every install of a release runs the same images. To check where the files came from: `gh attestation verify docker-compose.yaml -R CodeClarityCE/deployment` (and the same for `env.example`).
-2. Copy `env.example` to `.env`. It already sets `CODECLARITY_VERSION` to the release. Set `DOMAIN` to the name the instance is reached at. HTTPS follows it (see [TLS](#-tls)).
+2. Save `env.example` as `.env` (`cp env.example .env`). The release asset is this repository's `.env.example`; GitHub drops the leading dot when it is uploaded, so it downloads as `env.example`. It already sets `CODECLARITY_VERSION` to the release. Set `DOMAIN` to the name the instance is reached at. HTTPS follows it (see [TLS](#-tls)).
 3. Start the stack:
 
    ```bash
