@@ -38,6 +38,7 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
   - [⚡ Install](#-install)
   - [👤 Create the First User](#-create-the-first-user)
   - [🔒 TLS](#-tls)
+  - [🔌 Ports](#-ports)
   - [🔐 Secrets](#-secrets)
   - [📚 Knowledge Database](#-knowledge-database)
   - [🔄 Upgrade and Maintain](#-upgrade-and-maintain)
@@ -50,7 +51,11 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
 ## 📋 System Requirements
 
 - **Docker Engine** with **Docker Compose 2.24 or later**. [Docker install](https://docs.docker.com/engine/install/) | [Compose install](https://docs.docker.com/compose/install/)
-- About 8 GB of memory and 20 GB of disk for the images, the knowledge database and analyses.
+- **An x86_64 host.** The CodeQL plugin runs only on `linux/amd64`. On arm64 the rest of the stack runs natively, and analyzers that use CodeQL need amd64 emulation; the Default Analyzer does not use CodeQL.
+- **CPU:** at least 4 vCPUs. The vulnerability and CodeQL plugins are each limited to 4 CPUs, and Docker refuses to start a container whose CPU limit is above the host's count. 8 vCPUs are recommended.
+- **Memory:** at least 16 GB. The services reserve about 11 GB together. 32 GB is recommended for several analyses at once.
+- **Disk:** at least 40 GB, on SSD. About 1.5 GB of compressed images, of which CodeQL is 1.2 GB, plus the 0.6 GB knowledge dump image, which stays on disk after the restore. Then the knowledge database, analyses, cached git clones and 30 days of metrics, which all grow. 100 GB is recommended.
+- **Network:** inbound 80/tcp and 443/tcp (443/udp for HTTP/3, optional); see [Ports](#-ports) to use others. Outbound to Docker Hub, the git hosts you analyze, the npm registry and the vulnerability sources (NVD, OSV).
 
 Nothing else is needed on the host: no git, git-lfs, openssl or installer script.
 
@@ -87,6 +92,20 @@ Caddy, in the `frontend` service, serves HTTPS for `DOMAIN` with no extra steps:
 - Your own certificate: set `TLS_CERT` (full chain) and `TLS_KEY` in `.env` as PEM in double quotes, both or neither, then `docker compose up -d`. Caddy serves them for `DOMAIN` and does not request a certificate. Do the same after renewing them. Compose copies them into the container from `.env`; no file is mounted from the host.
 
 To try a public name without hitting Let's Encrypt's rate limits, set `ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory`, run `docker compose up -d`, and check that `docker compose logs frontend` shows `certificate obtained successfully` and that `curl -kv https://<DOMAIN>/ 2>&1 | grep issuer` names a staging issuer (`(STAGING)`). Then remove `ACME_CA` and run `docker compose up -d` again; Caddy gets a trusted certificate.
+
+## 🔌 Ports
+
+Caddy publishes HTTP on 80 and HTTPS on 443. When one is taken on the host, set another in `.env`, then `docker compose up -d`:
+
+```bash
+HTTP_PORT=8080
+HTTPS_PORT=8443
+HTTP3_PORT=8443
+```
+
+The instance is then at `https://<DOMAIN>:8443`, and `http://<DOMAIN>:8080` redirects there. Links in emails and the GitHub and GitLab sign-in callbacks use the same port, so register the callbacks as `https://<DOMAIN>:8443/auth/github/callback` and `https://<DOMAIN>:8443/auth/gitlab/callback`. Leave `HTTPS_PORT` unset for 443: setting it to 443 adds `:443` to those URLs.
+
+Automatic certificates for a public `DOMAIN` need ports 80 and 443 reachable from the internet as themselves. Behind other ports, use your own certificate (`TLS_CERT` and `TLS_KEY`, see [TLS](#-tls)), or forward 80 and 443 to the published ports.
 
 ## 🔐 Secrets
 
