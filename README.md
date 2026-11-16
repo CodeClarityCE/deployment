@@ -24,7 +24,7 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
 ### Current Plugin Ecosystem
 
 - **Built-in Plugins**: SBOM builder, vulnerability finder, license finder
-- **External Integrations**: CodeQL support
+- **External Integrations**: CodeQL support (optional, x86_64 only)
 - **Expanding Library**: More plugins coming soon
 
 ![CodeClarity Platform Overview](https://github.com/CodeClarityCE/identity/blob/main/illustration/rasterized/demo_illu.png)
@@ -40,7 +40,9 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
   - [🔒 TLS](#-tls)
   - [🔌 Ports](#-ports)
   - [🔐 Secrets](#-secrets)
+  - [🧩 Optional Components](#-optional-components)
   - [📈 Monitoring](#-monitoring)
+  - [📏 Larger Instances](#-larger-instances)
   - [📚 Knowledge Database](#-knowledge-database)
   - [🔄 Upgrade and Maintain](#-upgrade-and-maintain)
   - [🤝 Contributing](#-contributing)
@@ -51,14 +53,28 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
 
 ## 📋 System Requirements
 
+The default stack is designed and tested for a **reference machine**: a Raspberry Pi 5 with 8 GB of memory and an SSD (arm64). A small x86_64 machine with the same memory, such as an 8 GB laptop, runs the same stack. For more, see [Larger Instances](#-larger-instances).
+
 - **Docker Engine** with **Docker Compose 2.24 or later**. [Docker install](https://docs.docker.com/engine/install/) | [Compose install](https://docs.docker.com/compose/install/)
-- **CodeQL is optional and x86_64 only.** The CodeQL plugin is off unless you turn on its profile: `docker compose --profile codeql up -d`, or `COMPOSE_PROFILES=codeql` in `.env`. It runs only on `linux/amd64` and is not supported on arm64, where the rest of the stack runs natively. While it is off, analyzers that use CodeQL are shown as unavailable and cannot be started; the Default Analyzer does not use CodeQL.
+- **Platform:** `linux/amd64` or `linux/arm64`. Every default image runs natively on both. CodeQL is x86_64 only and not supported on arm64 (see [Optional Components](#-optional-components)).
 - **CPU:** at least 4 vCPUs. No container is limited to more than 4 CPUs, and Docker refuses to start a container whose CPU limit is above the host's count.
-- **Memory:** at least 8 GB. The memory limits of the containers that run by default add up to at most 6.5 GiB, which leaves the rest for the host. The limits are sized from idle figures and not yet measured under an analysis.
-- **Disk:** at least 40 GB, on SSD. About 1.5 GB of compressed images, of which CodeQL is 1.2 GB, plus the 0.6 GB knowledge dump image, which stays on disk after the restore. Then the knowledge database, analyses, cached git clones and, with monitoring on, 30 days of metrics, which all grow. 100 GB is recommended.
+- **Memory:** at least 8 GB. The memory limits of the containers that run by default add up to at most 6.5 GiB, which leaves the rest for the host. Analyses run one at a time; further submissions wait in the queue and run in turn.
+- **Disk:** at least 40 GB, on SSD. About 1.5 GB of compressed images, of which CodeQL is 1.2 GB and is only downloaded with its profile, plus the 0.6 GB knowledge dump image, which stays on disk after the restore. Then the knowledge database, analyses, cached git clones and, with monitoring on, 30 days of metrics, which all grow. 100 GB is recommended.
 - **Network:** inbound 80/tcp and 443/tcp (443/udp for HTTP/3, optional); see [Ports](#-ports) to use others. Outbound to Docker Hub, the git hosts you analyze, the npm registry and the vulnerability sources (NVD, OSV).
 
 Nothing else is needed on the host: no git, git-lfs, openssl or installer script.
+
+### Measured on the reference machine
+
+A CI job on an arm64 runner runs the default stack with the knowledge dump and the Default Analyzer on an npm project of about 1,000 dependencies. It fails if a container is killed for running out of memory, the stack's peak memory goes over 6.5 GiB, UI pages or API calls go over 1 s at p95 while the analysis runs, or the analysis does not finish.
+
+| Measure                                         | Target                                          | Measured                       |
+| ----------------------------------------------- | ----------------------------------------------- | ------------------------------ |
+| Stack peak memory during an analysis            | at most 6.5 GiB                                 | pending the first baseline run |
+| Containers killed for running out of memory     | none                                            | pending the first baseline run |
+| UI pages and API calls, p95, during an analysis | under 1 s                                       | pending the first baseline run |
+| Default Analyzer, about 1,000 npm dependencies  | finishes                                        | pending the first baseline run |
+| Analysis time                                   | recorded only; the runner is faster than a Pi 5 | pending the first baseline run |
 
 ## ⚡ Install
 
@@ -120,6 +136,35 @@ docker compose run --rm --no-deps --entrypoint cat grafana /run/codeclarity/admi
 
 Back up the `codeclarity_secrets` volume with the database: a restored database without its secrets locks the services out.
 
+## 🧩 Optional Components
+
+Two components are off by default, so a small machine spends its memory on analyses. Each has a Compose profile that turns it on:
+
+| Profile      | Runs                                                                           | Platform                    |
+| ------------ | ------------------------------------------------------------------------------ | --------------------------- |
+| `monitoring` | Prometheus, Grafana and the Postgres exporter (see [Monitoring](#-monitoring)) | amd64 and arm64             |
+| `codeql`     | The CodeQL plugin, for analyzers that use CodeQL                               | x86_64 (`linux/amd64`) only |
+
+To turn one or both on, list them in `.env`, then run `docker compose up -d`:
+
+```bash
+COMPOSE_PROFILES=monitoring,codeql
+```
+
+`docker compose --profile codeql up -d` does the same for one run, without changing `.env`.
+
+> [!IMPORTANT]
+> CodeQL is not supported on arm64, such as a Raspberry Pi. Leave the `codeql` profile off there: the image is only built for `linux/amd64`, and running it under emulation is not supported.
+
+### Unavailable analyzers
+
+An analyzer is shown as unavailable when a plugin it needs is not running, and starting an analysis with it is refused with the same reason, so nobody waits for a failure:
+
+- **Off on this instance:** the plugin belongs to an optional component that is not turned on, such as CodeQL. The analyzer names the component, for example "Needs CodeQL, which is off on this instance." Turn on its profile to make it available.
+- **Temporarily unavailable:** a plugin that should run has stopped, for example because it crashed or is restarting. Users are told to try again shortly, and a warning naming the plugin shows in the logs and the admin views. Once the plugin runs again, its analyzers are available with no other step.
+
+Both are detected live, from whether a plugin is connected to its queue; there is no setting to keep in sync. If a plugin stops while an analysis is waiting on it, the dispatcher fails that analysis a few minutes later, naming the plugin, instead of leaving it to the 24 h recovery limit.
+
 ## 📈 Monitoring
 
 Prometheus, Grafana and the Postgres exporter are an optional component, off by default so a small machine spends its memory on analyses. To turn them on, set this in `.env`, then run `docker compose up -d`:
@@ -136,6 +181,50 @@ To turn monitoring off again, remove `COMPOSE_PROFILES=monitoring` and stop its 
 docker compose --profile monitoring rm --stop --force prometheus grafana postgres_exporter
 ```
 
+## 📏 Larger Instances
+
+On a bigger machine, run several analyses at once and give Postgres more memory. This example is for an x86_64 host with 8 or more vCPUs and 32 GB of memory: 8 downloaders, 4 of each analysis plugin, Postgres with four times the default memory, and both optional components. Together its containers' memory limits add up to about 25 GiB.
+
+Add this to `.env` (on arm64, leave out `codeql`):
+
+```bash
+COMPOSE_PROFILES=monitoring,codeql
+PG_SHARED_BUFFERS=4GB
+PG_EFFECTIVE_CACHE_SIZE=12GB
+PG_WORK_MEM=32MB
+```
+
+Save this as `docker-compose.override.yaml` next to `docker-compose.yaml`. Compose reads both, and upgrading only replaces `docker-compose.yaml`, so the override stays:
+
+```yaml
+services:
+  service-downloader:
+    deploy:
+      replicas: 8
+  plugin-js-sbom:
+    deploy:
+      replicas: 4
+  plugin-php-sbom:
+    deploy:
+      replicas: 4
+  plugin-license-finder:
+    deploy:
+      replicas: 4
+  plugin-vuln-finder:
+    deploy:
+      replicas: 4
+  # Room for 4 GB of shared buffers plus the connections' work memory.
+  db:
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+```
+
+Then run `docker compose up -d`. To check the merged result first: `docker compose config`.
+
+Keep `PG_SHARED_BUFFERS` at about half of the `db` memory limit, and `PG_MAX_CONNECTIONS` at 100 or more. More replicas do not need more Postgres connections: pgbouncer opens at most 80 and the rest wait for a free one.
+
 ## 📚 Knowledge Database
 
 The knowledge database is restored from the `codeclarityce/knowledge-dump` image on first start, and `service-knowledge` keeps it current. It runs without an NVD API key, at NVD's lower rate; for faster updates, [request a key](https://nvd.nist.gov/developers/request-an-api-key), set `NVD_API_KEY` in `.env` and run `docker compose up -d`.
@@ -145,6 +234,7 @@ The knowledge database is restored from the `codeclarityce/knowledge-dump` image
 - `docker compose up -d`: install, upgrade or start. Migrations run once, before the API and services start.
 - Upgrade: replace `docker-compose.yaml` with the new release's, set `CODECLARITY_VERSION` in `.env` to that release, then `docker compose up -d`. Users, analyses and secrets are kept, and the new migrations run first. The stack does not start while `.env` names another release than the Compose file; the `version-check` job's log says which.
 - Upgrading from a release where monitoring ran by default: monitoring is now off until you turn on its profile (see [Monitoring](#-monitoring)). Its containers keep running after the upgrade until you set the profile or remove them.
+- Upgrading from a release before Postgres was tuned for 8 GB: Postgres now starts with 1 GB of shared buffers, a 3 GB cache size, 16 MB of work memory and at most 100 connections, in place of 128 MB of shared buffers and 200 connections. Settings are not migrated: on a bigger machine, raise them with the `PG_*` settings in `.env` and the `db` memory limit (see [Larger Instances](#-larger-instances)).
 - `docker compose down`: stop the stack. Data and secrets stay in their volumes.
 - `docker compose logs -f <service>`: follow a service's logs.
 - `docker compose pull`: download the images again.
