@@ -1,5 +1,6 @@
 {
-  "comment": "Loaded at boot via management.load_definitions (see rabbitmq.conf). Imports are additive — this declares only the dead-letter topology and policy; users/vhosts/permissions are managed elsewhere. Service consumers (dispatcher, downloader, notifier, ...) drop poison messages with a basic.nack(requeue=false); the 'dlx' policy routes those to the dead-letter exchange so they are retained in dead-letter-queue for inspection instead of being silently discarded.",
+  "comment": "Copied by generate-secrets into /run/codeclarity/definitions, which RabbitMQ imports at boot (see rabbitmq.conf) together with the users file generate-secrets writes. Imports are additive. This declares only the dead-letter topology and policy, plus the vhost they live in so the file imports on its own. Service consumers (dispatcher, downloader, notifier, ...) drop poison messages with a basic.nack(requeue=false); the 'dlx' policy routes those to the dead-letter exchange so they are retained in dead-letter-queue for inspection instead of being silently discarded.",
+  "vhosts": [{ "name": "/" }],
   "exchanges": [
     {
       "name": "dead-letter",

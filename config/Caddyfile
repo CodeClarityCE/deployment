@@ -1,13 +1,29 @@
-{$SERVER_NAME}{$SERVER_NAME_EXTRA} {
+# DOMAIN picks the certificate: Caddy's internal CA for localhost, ACME for a public name.
+# CADDY_TLS, CADDY_ACME_CA and CADDY_HTTPS_PORT are set by the Compose file from .env.
+{
+	{$CADDY_ACME_CA}
+	# The redirect below replaces Caddy's own, which always points at port 443.
+	auto_https disable_redirects
+}
+
+# HTTP to HTTPS on the published HTTPS port. ACME HTTP challenges are still answered here.
+http://{$DOMAIN} {
+	redir https://{host}{$CADDY_HTTPS_PORT}{uri} permanent
+}
+
+(tls) {
+	{$CADDY_TLS}
+}
+
+{$DOMAIN} {
+	import tls
+
 	handle /api/* {
 		uri strip_prefix /api
 		reverse_proxy api:3000
 	}
 
 	log
-
-	# test
-	{$CADDY_SERVER_EXTRA_DIRECTIVES}
 
 	root * /srv/app/dist
 
@@ -29,21 +45,19 @@
 	file_server
 }
 
-{$SERVER_NAME}:15672 {
+{$DOMAIN}:15672 {
+	import tls
 	reverse_proxy rabbitmq:15672
 }
 
-{$SERVER_NAME}:8080 {
-	log
-	reverse_proxy adminer:8080
-}
-
-{$SERVER_NAME}:9091 {
+{$DOMAIN}:9091 {
+	import tls
 	log
 	reverse_proxy prometheus:9090
 }
 
-{$SERVER_NAME}:3001 {
+{$DOMAIN}:3001 {
+	import tls
 	log
 	reverse_proxy grafana:3000
 }

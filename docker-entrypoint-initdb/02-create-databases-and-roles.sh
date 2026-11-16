@@ -21,7 +21,7 @@ EOSQL
 done
 
 # Create application roles with least-privilege access
-# Passwords use env vars set in .env.database, with fallback to POSTGRES_PASSWORD
+# Passwords come from env vars (the secrets job in production), falling back to POSTGRES_PASSWORD
 # Uses psql -v variable binding (:'var') to avoid SQL injection from passwords
 CC_API_PASSWORD="${CC_API_PASSWORD:-$POSTGRES_PASSWORD}"
 CC_SERVICE_PASSWORD="${CC_SERVICE_PASSWORD:-$POSTGRES_PASSWORD}"
@@ -52,7 +52,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
     GRANT pg_read_all_stats TO cc_exporter;
 
     -- CONNECT privileges per database
-    GRANT CONNECT ON DATABASE codeclarity TO cc_api, cc_service, cc_plugin, cc_exporter;
+    -- cc_knowledge only connects (the shared service base pings every database); it gets no table access here.
+    GRANT CONNECT ON DATABASE codeclarity TO cc_api, cc_service, cc_plugin, cc_knowledge, cc_exporter;
     GRANT CONNECT ON DATABASE knowledge TO cc_api, cc_service, cc_plugin, cc_knowledge, cc_exporter;
     GRANT CONNECT ON DATABASE plugins TO cc_api, cc_service, cc_plugin, cc_knowledge;
     GRANT CONNECT ON DATABASE config TO cc_api, cc_service, cc_plugin, cc_knowledge;
@@ -69,6 +70,10 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "codeclarity" <<-EO
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO cc_api, cc_service;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO cc_plugin;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cc_api, cc_service, cc_plugin;
+    -- Same defaults for objects the migrate job creates as cc_api (SET ROLE).
+    ALTER DEFAULT PRIVILEGES FOR ROLE cc_api IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO cc_api, cc_service;
+    ALTER DEFAULT PRIVILEGES FOR ROLE cc_api IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO cc_plugin;
+    ALTER DEFAULT PRIVILEGES FOR ROLE cc_api IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cc_api, cc_service, cc_plugin;
 EOSQL
 
 # Grant table-level permissions on knowledge database
@@ -82,6 +87,10 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "knowledge" <<-EOSQ
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO cc_api, cc_service, cc_plugin, cc_exporter;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO cc_knowledge;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cc_knowledge;
+    -- Same defaults for objects the migrate job creates as cc_knowledge (SET ROLE).
+    ALTER DEFAULT PRIVILEGES FOR ROLE cc_knowledge IN SCHEMA public GRANT SELECT ON TABLES TO cc_api, cc_service, cc_plugin, cc_exporter;
+    ALTER DEFAULT PRIVILEGES FOR ROLE cc_knowledge IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO cc_knowledge;
+    ALTER DEFAULT PRIVILEGES FOR ROLE cc_knowledge IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cc_knowledge;
 EOSQL
 
 # Grant table-level permissions on plugins database
@@ -92,6 +101,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "plugins" <<-EOSQL
     GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO cc_api, cc_service, cc_plugin, cc_knowledge;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO cc_api, cc_service, cc_plugin, cc_knowledge;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cc_api, cc_service, cc_plugin, cc_knowledge;
+    -- Same defaults for objects the migrate job creates as cc_api (SET ROLE).
+    ALTER DEFAULT PRIVILEGES FOR ROLE cc_api IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO cc_api, cc_service, cc_plugin, cc_knowledge;
+    ALTER DEFAULT PRIVILEGES FOR ROLE cc_api IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cc_api, cc_service, cc_plugin, cc_knowledge;
 EOSQL
 
 # Grant table-level permissions on config database
@@ -102,6 +114,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "config" <<-EOSQL
     GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO cc_api, cc_service, cc_knowledge;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO cc_api, cc_service, cc_knowledge;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cc_api, cc_service, cc_knowledge;
+    -- Same defaults for objects the migrate job creates as cc_api (SET ROLE).
+    ALTER DEFAULT PRIVILEGES FOR ROLE cc_api IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO cc_api, cc_service, cc_knowledge;
+    ALTER DEFAULT PRIVILEGES FOR ROLE cc_api IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cc_api, cc_service, cc_knowledge;
 EOSQL
 
 # --- pgbouncer auth_query support (transaction-pooling connection pooler) ---
@@ -129,6 +144,8 @@ for db in codeclarity knowledge plugins config; do
             WHERE rolname = p_usename AND rolcanlogin; $$;
         REVOKE ALL ON FUNCTION public.pgbouncer_get_auth(TEXT) FROM PUBLIC;
         GRANT EXECUTE ON FUNCTION public.pgbouncer_get_auth(TEXT) TO pgbouncer_auth;
+        -- The schema-wide REVOKE above also took away the schema the function lives in.
+        GRANT USAGE ON SCHEMA public TO pgbouncer_auth;
 EOSQL
 done
 
