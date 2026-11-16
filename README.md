@@ -53,8 +53,8 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
 
 - **Docker Engine** with **Docker Compose 2.24 or later**. [Docker install](https://docs.docker.com/engine/install/) | [Compose install](https://docs.docker.com/compose/install/)
 - **CodeQL is optional and x86_64 only.** The CodeQL plugin is off unless you turn on its profile: `docker compose --profile codeql up -d`, or `COMPOSE_PROFILES=codeql` in `.env`. It runs only on `linux/amd64` and is not supported on arm64, where the rest of the stack runs natively. While it is off, analyzers that use CodeQL are shown as unavailable and cannot be started; the Default Analyzer does not use CodeQL.
-- **CPU:** at least 4 vCPUs. The vulnerability and CodeQL plugins are each limited to 4 CPUs, and Docker refuses to start a container whose CPU limit is above the host's count. 8 vCPUs are recommended.
-- **Memory:** at least 16 GB. The services reserve about 11 GB together. 32 GB is recommended for several analyses at once.
+- **CPU:** at least 4 vCPUs. No container is limited to more than 4 CPUs, and Docker refuses to start a container whose CPU limit is above the host's count.
+- **Memory:** at least 8 GB. The memory limits of the containers that run by default add up to at most 6.5 GiB, which leaves the rest for the host. The limits are sized from idle figures and not yet measured under an analysis.
 - **Disk:** at least 40 GB, on SSD. About 1.5 GB of compressed images, of which CodeQL is 1.2 GB, plus the 0.6 GB knowledge dump image, which stays on disk after the restore. Then the knowledge database, analyses, cached git clones and, with monitoring on, 30 days of metrics, which all grow. 100 GB is recommended.
 - **Network:** inbound 80/tcp and 443/tcp (443/udp for HTTP/3, optional); see [Ports](#-ports) to use others. Outbound to Docker Hub, the git hosts you analyze, the npm registry and the vulnerability sources (NVD, OSV).
 

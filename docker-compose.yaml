@@ -101,6 +101,8 @@ x-backend-depends: &backend-depends
   pgbouncer:
     condition: service_started
 
+# Memory limits of the default long-running containers add up to at most 6.5 GiB and no CPU limit is above 4.
+# Sized from idle figures, not yet measured under an analysis; each Go service's GOMEMLIMIT is 5/6 of its limit.
 services:
   # One-shot job: fails when .env's CODECLARITY_VERSION is not this file's release, so a Compose
   # file and an .env from different releases never start together. Everything waits on it.
@@ -179,10 +181,7 @@ services:
       resources:
         limits:
           cpus: "1"
-          memory: 1G
-        reservations:
-          cpus: "1"
-          memory: 500M
+          memory: 512M
 
   # Its init script creates the databases and roles on an empty data volume.
   db:
@@ -232,6 +231,11 @@ services:
       interval: 2s
       timeout: 5s
       retries: 60
+    # 1 GB of shared_buffers plus room for the backends and work_mem; no CPU limit, it does the matching.
+    deploy:
+      resources:
+        limits:
+          memory: 2G
 
   # Transaction-pooling connection pooler. Application services connect here
   # instead of directly to Postgres. Config and multi-role auth_query: config/pgbouncer.ini.
@@ -250,10 +254,7 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: 256M
-        reservations:
-          cpus: "0.25"
-          memory: 128M
+          memory: 64M
 
   # One-shot job: restores knowledge and config from the dump image when knowledge is empty.
   # KNOWLEDGE_DUMP_IMAGE swaps in another dump image.
@@ -334,10 +335,7 @@ services:
       resources:
         limits:
           cpus: "2"
-          memory: 1G
-        reservations:
-          cpus: "1"
-          memory: 500M
+          memory: 640M
 
   frontend:
     image: codeclarityce/frontend
@@ -390,18 +388,17 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2"
-          memory: 2G
-        reservations:
           cpus: "1"
-          memory: 500M
+          memory: 128M
 
   service-dispatcher:
     image: codeclarityce/service-dispatcher
     restart: always
     entrypoint: *with-secrets
     command: ["./plugin"]
-    environment: *service-env
+    environment:
+      <<: *service-env
+      GOMEMLIMIT: 160MiB
     depends_on: *backend-depends
     volumes:
       - secrets-service:/run/codeclarity:ro
@@ -409,17 +406,16 @@ services:
       resources:
         limits:
           cpus: "1"
-          memory: 1G
-        reservations:
-          cpus: "0.5"
-          memory: 500M
+          memory: 192M
 
   service-downloader:
     image: codeclarityce/service-downloader
     restart: always
     entrypoint: *with-secrets
     command: ["./plugin"]
-    environment: *service-env
+    environment:
+      <<: *service-env
+      GOMEMLIMIT: 320MiB
     depends_on: *backend-depends
     volumes:
       - projects:/private
@@ -428,17 +424,16 @@ services:
       resources:
         limits:
           cpus: "2"
-          memory: 1G
-        reservations:
-          cpus: "1"
-          memory: 500M
+          memory: 384M
 
   service-follower:
     image: codeclarityce/service-package-follower
     restart: always
     entrypoint: *with-secrets
     command: ["./plugin"]
-    environment: *service-env
+    environment:
+      <<: *service-env
+      GOMEMLIMIT: 160MiB
     depends_on: *backend-depends
     volumes:
       - projects:/private
@@ -446,18 +441,17 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2"
-          memory: 1G
-        reservations:
-          cpus: "0.5"
-          memory: 500M
+          cpus: "1"
+          memory: 192M
 
   service-scheduler:
     image: codeclarityce/service-scheduler
     restart: always
     entrypoint: *with-secrets
     command: ["./scheduler"]
-    environment: *service-env
+    environment:
+      <<: *service-env
+      GOMEMLIMIT: 80MiB
     depends_on: *backend-depends
     volumes:
       - secrets-service:/run/codeclarity:ro
@@ -465,17 +459,16 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: 500M
-        reservations:
-          cpus: "0.25"
-          memory: 250M
+          memory: 96M
 
   service-notifier:
     image: codeclarityce/service-notifier
     restart: always
     entrypoint: *with-secrets
     command: ["./plugin"]
-    environment: *service-env
+    environment:
+      <<: *service-env
+      GOMEMLIMIT: 80MiB
     depends_on: *backend-depends
     volumes:
       - secrets-service:/run/codeclarity:ro
@@ -483,10 +476,7 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: 500M
-        reservations:
-          cpus: "0.25"
-          memory: 250M
+          memory: 96M
 
   # Keeps the knowledge database current. Runs without an NVD key, at NVD's lower rate.
   # Low CPU weight and a fixed memory share, so updates never slow analyses or the UI.
@@ -509,16 +499,15 @@ services:
         limits:
           cpus: "1"
           memory: 768M
-        reservations:
-          cpus: "0.25"
-          memory: 256M
 
   plugin-js-sbom:
     image: codeclarityce/plugin-js-sbom
     restart: always
     entrypoint: *with-secrets
     command: ["./plugin"]
-    environment: *plugin-env
+    environment:
+      <<: *plugin-env
+      GOMEMLIMIT: 320MiB
     depends_on: *backend-depends
     volumes:
       - projects:/private
@@ -529,17 +518,16 @@ services:
       resources:
         limits:
           cpus: "1"
-          memory: 500M
-        reservations:
-          cpus: "0.5"
-          memory: 250M
+          memory: 384M
 
   plugin-license-finder:
     image: codeclarityce/plugin-license-finder
     restart: always
     entrypoint: *with-secrets
     command: ["./plugin"]
-    environment: *plugin-env
+    environment:
+      <<: *plugin-env
+      GOMEMLIMIT: 160MiB
     depends_on: *backend-depends
     volumes:
       - secrets-plugin:/run/codeclarity:ro
@@ -547,17 +535,16 @@ services:
       resources:
         limits:
           cpus: "1"
-          memory: 500M
-        reservations:
-          cpus: "0.5"
-          memory: 250M
+          memory: 192M
 
   plugin-vuln-finder:
     image: codeclarityce/plugin-vuln-finder
     restart: always
     entrypoint: *with-secrets
     command: ["./plugin"]
-    environment: *plugin-env
+    environment:
+      <<: *plugin-env
+      GOMEMLIMIT: 426MiB
     depends_on: *backend-depends
     volumes:
       - projects:/private
@@ -565,18 +552,17 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "4"
-          memory: 4G
-        reservations:
           cpus: "2"
-          memory: 2G
+          memory: 512M
 
   plugin-php-sbom:
     image: codeclarityce/plugin-php-sbom
     restart: always
     entrypoint: *with-secrets
     command: ["./plugin"]
-    environment: *plugin-env
+    environment:
+      <<: *plugin-env
+      GOMEMLIMIT: 160MiB
     depends_on: *backend-depends
     volumes:
       - projects:/private
@@ -587,10 +573,7 @@ services:
       resources:
         limits:
           cpus: "1"
-          memory: 500M
-        reservations:
-          cpus: "0.5"
-          memory: 250M
+          memory: 192M
 
   # Optional: runs only with `--profile codeql` (or COMPOSE_PROFILES=codeql), on x86_64 hosts
   plugin-codeql:
