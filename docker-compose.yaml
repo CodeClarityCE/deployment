@@ -482,6 +482,7 @@ services:
           memory: 250M
 
   # Keeps the knowledge database current. Runs without an NVD key, at NVD's lower rate.
+  # Low CPU weight and a fixed memory share, so updates never slow analyses or the UI.
   service-knowledge:
     image: codeclarityce/service-knowledge
     restart: always
@@ -490,17 +491,20 @@ services:
     environment:
       <<: *service-env
       PG_DB_USER: cc_knowledge
+      # Keep the Go heap below the container's memory limit.
+      GOMEMLIMIT: 640MiB
     depends_on: *backend-depends
     volumes:
       - secrets-knowledge:/run/codeclarity:ro
+    cpu_shares: 256
     deploy:
       resources:
         limits:
-          cpus: "2"
-          memory: 3G
-        reservations:
           cpus: "1"
-          memory: 2G
+          memory: 768M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
 
   plugin-js-sbom:
     image: codeclarityce/plugin-js-sbom
