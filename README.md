@@ -34,20 +34,13 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
 
 - [CodeClarity Deployment Guide](#codeclarity-deployment-guide)
   - [🚀 What is CodeClarity?](#-what-is-codeclarity)
-    - [Current Plugin Ecosystem](#current-plugin-ecosystem)
   - [📋 System Requirements](#-system-requirements)
-  - [⚡ Quick Start Guide](#-quick-start-guide)
-  - [🎉 Start Using the Platform](#-start-using-the-platform)
-  - [🛠️ Detailed Setup Instructions](#️-detailed-setup-instructions)
-    - [1. Download and Run the Setup Script](#1-download-and-run-the-setup-script)
-    - [2. Choose Your Installation Method](#2-choose-your-installation-method)
-      - [Option 1: Local Development Installation 🏠](#option-1-local-development-installation-)
-      - [Option 2: Production/Server Installation 🌐](#option-2-productionserver-installation-)
-        - [SSL Certificate Options](#ssl-certificate-options)
-          - [Automatic Certificate Generation (Recommended) 🔐](#automatic-certificate-generation-recommended-)
-          - [Custom Certificate Management 📜](#custom-certificate-management-)
-    - [3. Update the Knowledge Database (Optional)](#3-update-the-knowledge-database-optional)
-    - [4. Maintaining the Platform](#4-maintaining-the-platform)
+  - [⚡ Install](#-install)
+  - [👤 Create the First User](#-create-the-first-user)
+  - [🔒 TLS](#-tls)
+  - [🔐 Secrets](#-secrets)
+  - [📚 Knowledge Database](#-knowledge-database)
+  - [🔄 Upgrade and Maintain](#-upgrade-and-maintain)
   - [🤝 Contributing](#-contributing)
   - [🐛 Reporting Issues](#-reporting-issues)
   - [📄 License](#-license)
@@ -56,206 +49,74 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
 
 ## 📋 System Requirements
 
-Before you begin, make sure your system meets the following requirements:
+- **Docker Engine** with **Docker Compose 2.24 or later**. [Docker install](https://docs.docker.com/engine/install/) | [Compose install](https://docs.docker.com/compose/install/)
+- About 8 GB of memory and 20 GB of disk for the images, the knowledge database and analyses.
 
-- **curl**: For downloading the setup script. [Install instructions](https://curl.se/download.html)
-- **git**: Required for cloning the deployment repository and updating the platform. [Install instructions](https://git-scm.com/downloads)
-- **git-lfs**: Required for fetching database dumps (stored in Git LFS). [Install instructions](https://git-lfs.com/)
-- **openssl**: Required for generating SSL certificates. [Install instructions](https://www.openssl.org/source/)
-- **Docker & Docker Compose**: Containerization platform and orchestration tool for running CodeClarity. [Docker install](https://docs.docker.com/engine/install/) | [Compose install](https://docs.docker.com/compose/install/)
-- **make** (optional): Simplifies maintenance and update tasks. [Install instructions](https://www.gnu.org/software/make/)
+Nothing else is needed on the host: no git, git-lfs, openssl or installer script.
 
-> [!TIP]
-> If you're new to Docker, check out the [Docker Get Started guide](https://docs.docker.com/get-started/) for a quick introduction.
+## ⚡ Install
 
-## ⚡ Quick Start Guide
+1. Download `docker-compose.yaml` and `env.example` from the [latest release](https://github.com/CodeClarityCE/deployment/releases) into an empty directory. Every image in that Compose file is pinned by digest, so every install of a release runs the same images. To check where the files came from: `gh attestation verify docker-compose.yaml -R CodeClarityCE/deployment` (and the same for `env.example`).
+2. Save `env.example` as `.env` (`cp env.example .env`). The release asset is this repository's `.env.example`; GitHub drops the leading dot when it is uploaded, so it downloads as `env.example`. It already sets `CODECLARITY_VERSION` to the release. Set `DOMAIN` to the name the instance is reached at. HTTPS follows it (see [TLS](#-tls)).
+3. Start the stack:
 
-**Want to get started in 2 minutes?** Run this one-liner to install CodeClarity locally:
+   ```bash
+   docker compose up -d
+   ```
+
+On first start, one-shot setup jobs run before the app starts: `generate-secrets` creates the instance's secrets, the database init script creates the databases and roles, `knowledge-restore` restores the knowledge database from the knowledge dump image, `migrate` applies the migrations, and `default-analyzer` creates the global "Default Analyzer". Nothing prompts and no file is rewritten. If a job fails, the app services stay stopped and the job's error is in `docker compose logs <job>`.
+
+Running `docker compose up -d` again is always safe: each job finds its work done and does nothing.
+
+## 👤 Create the First User
+
+A new instance has no accounts. Create one, then log in at `https://<DOMAIN>`:
 
 ```bash
-curl -O https://raw.githubusercontent.com/CodeClarityCE/deployment/main/setup.sh && bash setup.sh
+docker compose run --rm api create-user --email you@example.com --name "Your Name" --password 'a-long-password'
 ```
 
-When prompted, choose `Y` for localhost installation, and you'll have CodeClarity running at `https://localhost:443`!
+The user is activated and verified, so no mail server is needed, and owns a personal organization. Running it again for an existing email changes nothing; add `--reset-password` to set a new password. To keep the password out of your shell history, pass it as `CREATE_USER_PASSWORD` instead: `docker compose run --rm -e CREATE_USER_PASSWORD api create-user ...`. `CREATE_USER_EMAIL` and `CREATE_USER_NAME` in `.env` are defaults for the other two flags.
+
+## 🔒 TLS
+
+Caddy, in the `frontend` service, serves HTTPS for `DOMAIN` with no extra steps:
+
+- `DOMAIN=localhost`: a certificate from Caddy's internal certificate authority, so your browser asks you to trust it. Its root is in the `codeclarity_caddy_data` volume: `docker compose exec frontend cat /data/caddy/pki/authorities/local/root.crt`.
+- A public name: a certificate from Let's Encrypt (or ZeroSSL), renewed automatically. DNS for the name must point at this host, and ports 80 and 443 must be reachable from the internet.
+- Your own certificate: set `TLS_CERT` (full chain) and `TLS_KEY` in `.env` as PEM in double quotes, both or neither, then `docker compose up -d`. Caddy serves them for `DOMAIN` and does not request a certificate. Do the same after renewing them. Compose copies them into the container from `.env`; no file is mounted from the host.
+
+To try a public name without hitting Let's Encrypt's rate limits, set `ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory`, run `docker compose up -d`, and check that `docker compose logs frontend` shows `certificate obtained successfully` and that `curl -kv https://<DOMAIN>/ 2>&1 | grep issuer` names a staging issuer (`(STAGING)`). Then remove `ACME_CA` and run `docker compose up -d` again; Caddy gets a trusted certificate.
+
+## 🔐 Secrets
+
+Every secret is generated on first start into the `codeclarity_secrets` Docker volume and never regenerated: the Postgres, role, pgbouncer and RabbitMQ passwords, the JWT signing keys, the internal certificate authority with the Postgres and RabbitMQ certificates, the cookie secret and the Grafana admin password. Each service mounts a volume holding only what it reads. No secret lives in this repository or in `.env`.
+
+The Grafana admin password (user `admin`) is printed by:
+
+```bash
+docker compose run --rm --no-deps --entrypoint cat grafana /run/codeclarity/admin_password
+```
+
+Back up the `codeclarity_secrets` volume with the database: a restored database without its secrets locks the services out.
+
+## 📚 Knowledge Database
+
+The knowledge database is restored from the `codeclarityce/knowledge-dump` image on first start, and `service-knowledge` keeps it current. It runs without an NVD API key, at NVD's lower rate; for faster updates, [request a key](https://nvd.nist.gov/developers/request-an-api-key), set `NVD_API_KEY` in `.env` and run `docker compose up -d`.
+
+## 🔄 Upgrade and Maintain
+
+- `docker compose up -d`: install, upgrade or start. Migrations run once, before the API and services start.
+- Upgrade: replace `docker-compose.yaml` with the new release's, set `CODECLARITY_VERSION` in `.env` to that release, then `docker compose up -d`. Users, analyses and secrets are kept, and the new migrations run first. The stack does not start while `.env` names another release than the Compose file; the `version-check` job's log says which.
+- `docker compose down`: stop the stack. Data and secrets stay in their volumes.
+- `docker compose logs -f <service>`: follow a service's logs.
+- `docker compose pull`: download the images again.
 
 > [!NOTE]
-> For production deployments or custom configurations, follow the [detailed setup instructions](#️-detailed-setup-instructions) below.
-
-## 🎉 Start Using the Platform
-
-You're ready to access CodeClarity! Open [https://localhost:443](https://localhost:443) in your browser to get started.
-
-> [!WARNING]
-> Your browser may prompt you to accept the self-signed certificate generated by Caddy. This is expected for local installations.
-
-> [!NOTE]
-> To help you get started quickly, use the following credentials:
->
-> - **Login:** `john.doe@codeclarity.io`
-> - **Password:** `ThisIs4Str0ngP4ssW0rd?`
-
-*We recommend changing your password after your first login.*
-
-Ready to explore? Follow the [Create Your First Analysis](https://doc.codeclarity.io/docs/0.0.21/tutorials/basic/create-analysis) guide to begin analyzing your code!
-
-## 🛠️ Detailed Setup Instructions
-
-This repository contains all the configuration files needed to deploy CodeClarity. The setup process is designed to be simple and guides you through different deployment scenarios.
-
-### 1. Download and Run the Setup Script
-
-This script will automatically clone the deployment repository and guide you through the initial setup of CodeClarity.
-
-> [!WARNING]
-> Please make sure the Docker daemon is running before executing the setup script.
-
-```bash
-curl -O https://raw.githubusercontent.com/CodeClarityCE/deployment/main/setup.sh && bash setup.sh
-```
-
-<details>
-  <summary>What does this script do?</summary>
-  <ol>
-    <li><strong>Clone the Deployment Repository:</strong> Downloads all necessary configuration files from the CodeClarityCE deployment repository.</li>
-    <li><strong>Start Docker Containers:</strong> Launches the core CodeClarity services using <code>docker-compose.yml</code>.</li>
-    <li><strong>Download Database Dumps:</strong> Retrieves pre-populated database dumps with initial platform data and checks them against the dump manifest (<code>dump/knowledge-manifest.json</code>).</li>
-    <li><strong>Create Databases:</strong> Sets up the required databases for CodeClarity, ensuring a clean environment.</li>
-    <li><strong>Restore Database Content:</strong> Loads the initial data into the databases, reassembling split dumps first. Setup stops if a dump does not match its manifest or a restore reports an error.</li>
-    <li><strong>Restart Containers:</strong> Restarts all services to apply changes and ensure everything is running correctly.</li>
-  </ol>
-</details>
-
-### 2. Choose Your Installation Method
-
-The setup script will guide you through two installation options based on your deployment environment:
-
-#### Option 1: Local Development Installation 🏠
-
-**Best for:** Development, testing, and local evaluation
-
-The fastest way to get started with CodeClarity is to install it on your local machine. This option is perfect for:
-
-- Evaluating CodeClarity's features
-- Development and testing
-- Quick proof-of-concept deployments
-
-When prompted, select **localhost installation**:
-
-```bash
-Is this installation running on localhost (Y/n)?
-Y
-```
-
-> [!NOTE]
-> **What happens next:**
->
-> - CodeClarity will be accessible at `https://localhost:443`
-> - Self-signed certificates will be automatically generated
-> - No external DNS configuration required
-
-#### Option 2: Production/Server Installation 🌐
-
-**Best for:** Production deployments, team environments, and public-facing instances
-
-Choose this option when deploying CodeClarity on a server with a specific domain name.
-
-First, decline the localhost option:
-
-```bash
-Is this installation running on localhost (Y/n)?
-n
-```
-
-Then provide your domain name (must point to your server's IP address):
-
-```bash
-Enter the domain name (localtest.io):
-your-domain.com
-```
-
-> [!IMPORTANT]
-> **Prerequisites for domain installation:**
->
-> - Your domain must be configured to point to your server's IP address
-> - Ensure ports 80 and 443 are accessible from the internet (if using automatic certificates)
-
-##### SSL Certificate Options
-
-You have two options for SSL certificates:
-
-###### Automatic Certificate Generation (Recommended) 🔐
-
-Let Caddy automatically generate and manage SSL certificates via Let's Encrypt:
-
-```bash
-Do you want Caddy to generate certificates (Y/n)?
-Y
-```
-
-> [!TIP]
-> **Requirements for automatic certificates:**
->
-> - Your server must be publicly accessible from the internet
-> - Domain must resolve to your server's public IP
-> - Ports 80 and 443 must be open
-> - Let's Encrypt rate limits apply
-
-###### Custom Certificate Management 📜
-
-Use your own SSL certificates:
-
-```bash
-Do you want Caddy to generate certificates (Y/n)?
-n
-```
-
-> [!NOTE]
-> **Using custom certificates:**
->
-> - The setup script will create placeholder certificates in the `certs` directory
-> - Replace the generated certificates with your own before starting the platform
-> - Restart the platform after replacing certificates: `docker compose restart`
-> - Supported formats: PEM-encoded certificate and private key files
-
-### 3. Update the Knowledge Database (Optional)
-
-To keep your vulnerability database up to date, you can refresh it using the latest data from the National Vulnerability Database (NVD).
-
-> [!NOTE]
-> Apply for a free [NVD API key](https://nvd.nist.gov/developers/request-an-api-key) and add it to your `.env.codeclarity` file before updating.
-
-**To update the knowledge database, run:**
-
-```bash
-make knowledge-update
-```
-
-This will download and import the latest vulnerability data, ensuring your platform has the most current security information.
-
-### 4. Maintaining the Platform
-
-After the initial setup, you can manage CodeClarity using standard Docker Compose commands—no need to rerun the setup script.
-
-> [!NOTE]
-> Common Docker Compose Commands
->
-> - `docker compose up -d`: Start the platform in the background (detached mode).
-> - `docker compose down`: Stop the platform and remove containers.
-> - `docker compose restart`: Restart all platform containers.
-> - `docker compose pull`: Download the latest Docker images from the repository.
-
-> [!TIP]
-> To update CodeClarity to the latest version:
->
-> - `git pull`: Fetch the latest changes from the deployment repository.
-> - `docker compose pull`: Download updated Docker images.
-> - `docker compose restart`: Restart containers to apply updates.
-
-> [!IMPORTANT]
-> Grafana alerts on failed or stale knowledge sources. On a database created before these alerts existed, run `make grant-grafana-knowledge` once after the migrations, and set `CC_EXPORTER_PASSWORD` in `.env.grafana` to the value in `.env.database`. Alerts show in Grafana until you add a contact point there. If you override `KNOWLEDGE_STALE_AFTER_HOURS_*` on the API, change the thresholds in `config/grafana/provisioning/alerting/knowledge-sources.yml` to match.
+> Grafana alerts on failed or stale knowledge sources. Alerts show in Grafana until you add a contact point there. If you override `KNOWLEDGE_STALE_AFTER_HOURS_*` on the API, change the thresholds in the `grafana-alerting` config in `docker-compose.yaml` to match.
 
 > [!CAUTION]
-> Your data is stored in Docker volumes and will persist between restarts. However, always back up your data before performing major updates.
+> Your data is stored in Docker volumes and persists between restarts. Back up the volumes, including `codeclarity_secrets`, before major updates.
 
 ## 🤝 Contributing
 

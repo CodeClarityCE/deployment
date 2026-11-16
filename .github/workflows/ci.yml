@@ -1,4 +1,11 @@
-# Light CI: workflow lint from the central repo and shellcheck over the shell scripts.
+# CI: workflow lint from the central repo, shellcheck over the shell scripts, the version check
+# on PRs to main, and the release of the Compose file.
+#
+# release (main pushes with CI_RELEASE == 'true' only, in the release environment): skip if the
+# version's tag exists, else render the Compose file with every image pinned by digest and every
+# config inlined, run its setup jobs on the runner (restoring the pinned knowledge dump and
+# applying the migrations), attest both files, then create the GitHub release with them attached.
+# The central image workflows build images, so this release job lives here.
 name: CI
 
 on:
@@ -22,6 +29,11 @@ jobs:
     permissions:
       contents: read
 
+  version:
+    uses: CodeClarityCE/.github/.github/workflows/version-check.yml@v1
+    permissions:
+      contents: read
+
   shellcheck:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -40,10 +52,131 @@ jobs:
             "$SHELLCHECK_IMAGE" --external-sources --format=gcc |
             sed -E 's/^([^:]+):([0-9]+):([0-9]+): ([a-z]+): (.*)$/::\4 file=\1,line=\2,col=\3::\5/; s/^::note /::notice /'
 
+  release:
+    name: release
+    needs: [lint, shellcheck]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CI_RELEASE == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: meta
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(jq -er .version config.json)
+          # The version goes into workflow commands and refs, so only allow plain characters.
+          [[ "$version" =~ ^[0-9A-Za-z.+_-]+$ ]] || { echo "::error file=config.json::Unexpected version format: $version"; exit 1; }
+          prerelease=false
+          if grep -q 'alpha\|beta' <<<"$version"; then prerelease=true; fi
+          found=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$version" --jq "map(select(.ref == \"refs/tags/$version\")) | length")
+          exists=false
+          if [[ "$found" != 0 ]]; then
+            exists=true
+            echo "Release $version already exists, skipping"
+            echo "Release \`$version\` already exists, so nothing was released." >>"$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo "version=$version"
+            echo "prerelease=$prerelease"
+            echo "exists=$exists"
+          } >>"$GITHUB_OUTPUT"
+      # Logged in so the digest lookups and pulls do not hit Docker Hub's anonymous limit.
+      - if: steps.meta.outputs.exists == 'false'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - if: steps.meta.outputs.exists == 'false'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - id: render
+        name: Render the release files
+        if: steps.meta.outputs.exists == 'false'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          OUT: ${{ runner.temp }}/release
+        run: |
+          set -euo pipefail
+          sh scripts/render-release.sh "$VERSION" . "$OUT"
+          # GitHub renames release assets that start with a dot, so .env.example ships as env.example.
+          mv "$OUT/.env.example" "$OUT/env.example"
+          echo "out=$OUT" >>"$GITHUB_OUTPUT"
+      # Runs the rendered file's setup jobs with its own .env.example, so the release is the
+      # file that restored its pinned knowledge dump and applied the migrations.
+      - name: Run the setup jobs of the released file
+        if: steps.meta.outputs.exists == 'false'
+        env:
+          OUT: ${{ steps.render.outputs.out }}
+          RUN: ${{ runner.temp }}/run
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUN"
+          cp "$OUT/docker-compose.yaml" "$RUN/docker-compose.yaml"
+          cp "$OUT/env.example" "$RUN/.env"
+          compose() { docker compose --project-directory "$RUN" -f "$RUN/docker-compose.yaml" "$@"; }
+          compose config --quiet
+          compose up -d default-analyzer
+          deadline=$(($(date +%s) + 2400))
+          while :; do
+            bad=$(compose ps -a --format json | jq -rs 'flatten | .[] | select(.State == "exited" and .ExitCode != 0) | .Service')
+            done=$(compose ps -a --format json | jq -rs 'flatten | .[] | select(.Service == "default-analyzer" and .State == "exited" and .ExitCode == 0) | .Service')
+            if [[ -n "$bad" ]]; then
+              for s in $bad; do echo "::group::logs: $s"; compose logs --no-color --tail=200 "$s"; echo "::endgroup::"; done
+              echo "::error::Setup jobs failed: $bad"
+              exit 1
+            fi
+            [[ -n "$done" ]] && break
+            (( $(date +%s) < deadline )) || { compose ps -a; echo "::error::Setup jobs did not finish in time"; exit 1; }
+            sleep 10
+          done
+          compose logs --no-color knowledge-restore | tail -20
+          compose down -v
+      - if: steps.meta.outputs.exists == 'false'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            ${{ steps.render.outputs.out }}/docker-compose.yaml
+            ${{ steps.render.outputs.out }}/env.example
+      - name: Create the GitHub release
+        if: steps.meta.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+          OUT: ${{ steps.render.outputs.out }}
+        run: |
+          set -euo pipefail
+          {
+            cat "$OUT/release-notes.md"
+            echo
+            echo "Before releasing, CI ran this file's setup jobs: they restored that knowledge dump and applied the migrations."
+            echo "Verify the files with \`gh attestation verify <file> -R $GITHUB_REPOSITORY\`."
+          } >"$OUT/notes.md"
+          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Release $VERSION" --notes-file "$OUT/notes.md" --generate-notes --prerelease="$PRERELEASE" \
+            "$OUT/docker-compose.yaml" "$OUT/env.example"
+          {
+            echo "### Released \`$VERSION\`"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`$GITHUB_SHA\` |"
+            echo "| Assets | \`docker-compose.yaml\`, \`env.example\` |"
+            echo "| Prerelease | $PRERELEASE |"
+          } >>"$GITHUB_STEP_SUMMARY"
+          cat "$OUT/release-notes.md" >>"$GITHUB_STEP_SUMMARY"
+
   # The required check, kept here because called jobs show as "lint / <job>".
   # Fails if any needed job failed or was cancelled; skipped counts as success.
   ci:
-    needs: [lint, shellcheck]
+    needs: [lint, version, shellcheck, release]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
