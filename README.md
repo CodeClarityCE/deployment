@@ -40,6 +40,7 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
   - [🔒 TLS](#-tls)
   - [🔌 Ports](#-ports)
   - [🔐 Secrets](#-secrets)
+  - [📈 Monitoring](#-monitoring)
   - [📚 Knowledge Database](#-knowledge-database)
   - [🔄 Upgrade and Maintain](#-upgrade-and-maintain)
   - [🤝 Contributing](#-contributing)
@@ -54,7 +55,7 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
 - **An x86_64 host.** The CodeQL plugin runs only on `linux/amd64`. On arm64 the rest of the stack runs natively, and analyzers that use CodeQL need amd64 emulation; the Default Analyzer does not use CodeQL.
 - **CPU:** at least 4 vCPUs. The vulnerability and CodeQL plugins are each limited to 4 CPUs, and Docker refuses to start a container whose CPU limit is above the host's count. 8 vCPUs are recommended.
 - **Memory:** at least 16 GB. The services reserve about 11 GB together. 32 GB is recommended for several analyses at once.
-- **Disk:** at least 40 GB, on SSD. About 1.5 GB of compressed images, of which CodeQL is 1.2 GB, plus the 0.6 GB knowledge dump image, which stays on disk after the restore. Then the knowledge database, analyses, cached git clones and 30 days of metrics, which all grow. 100 GB is recommended.
+- **Disk:** at least 40 GB, on SSD. About 1.5 GB of compressed images, of which CodeQL is 1.2 GB, plus the 0.6 GB knowledge dump image, which stays on disk after the restore. Then the knowledge database, analyses, cached git clones and, with monitoring on, 30 days of metrics, which all grow. 100 GB is recommended.
 - **Network:** inbound 80/tcp and 443/tcp (443/udp for HTTP/3, optional); see [Ports](#-ports) to use others. Outbound to Docker Hub, the git hosts you analyze, the npm registry and the vulnerability sources (NVD, OSV).
 
 Nothing else is needed on the host: no git, git-lfs, openssl or installer script.
@@ -119,6 +120,22 @@ docker compose run --rm --no-deps --entrypoint cat grafana /run/codeclarity/admi
 
 Back up the `codeclarity_secrets` volume with the database: a restored database without its secrets locks the services out.
 
+## 📈 Monitoring
+
+Prometheus, Grafana and the Postgres exporter are an optional component, off by default so a small machine spends its memory on analyses. To turn them on, set this in `.env`, then run `docker compose up -d`:
+
+```bash
+COMPOSE_PROFILES=monitoring
+```
+
+Grafana is then at `https://<DOMAIN>:3001`, as user `admin` with the password printed by the command in [Secrets](#-secrets). While monitoring is off, that address answers `503` with a message saying how to turn it on.
+
+To turn monitoring off again, remove `COMPOSE_PROFILES=monitoring` and stop its containers; their data stays in its volumes:
+
+```bash
+docker compose --profile monitoring rm --stop --force prometheus grafana postgres_exporter
+```
+
 ## 📚 Knowledge Database
 
 The knowledge database is restored from the `codeclarityce/knowledge-dump` image on first start, and `service-knowledge` keeps it current. It runs without an NVD API key, at NVD's lower rate; for faster updates, [request a key](https://nvd.nist.gov/developers/request-an-api-key), set `NVD_API_KEY` in `.env` and run `docker compose up -d`.
@@ -127,12 +144,13 @@ The knowledge database is restored from the `codeclarityce/knowledge-dump` image
 
 - `docker compose up -d`: install, upgrade or start. Migrations run once, before the API and services start.
 - Upgrade: replace `docker-compose.yaml` with the new release's, set `CODECLARITY_VERSION` in `.env` to that release, then `docker compose up -d`. Users, analyses and secrets are kept, and the new migrations run first. The stack does not start while `.env` names another release than the Compose file; the `version-check` job's log says which.
+- Upgrading from a release where monitoring ran by default: monitoring is now off until you turn on its profile (see [Monitoring](#-monitoring)). Its containers keep running after the upgrade until you set the profile or remove them.
 - `docker compose down`: stop the stack. Data and secrets stay in their volumes.
 - `docker compose logs -f <service>`: follow a service's logs.
 - `docker compose pull`: download the images again.
 
 > [!NOTE]
-> Grafana alerts on failed or stale knowledge sources. Alerts show in Grafana until you add a contact point there. If you override `KNOWLEDGE_STALE_AFTER_HOURS_*` on the API, change the thresholds in the `grafana-alerting` config in `docker-compose.yaml` to match.
+> With monitoring on, Grafana alerts on failed or stale knowledge sources. Alerts show in Grafana until you add a contact point there. If you override `KNOWLEDGE_STALE_AFTER_HOURS_*` on the API, change the thresholds in the `grafana-alerting` config in `docker-compose.yaml` to match.
 
 > [!CAUTION]
 > Your data is stored in Docker volumes and persists between restarts. Back up the volumes, including `codeclarity_secrets`, before major updates.

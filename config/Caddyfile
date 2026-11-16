@@ -50,16 +50,25 @@ http://{$DOMAIN} {
 	reverse_proxy rabbitmq:15672
 }
 
+# Prometheus and Grafana run only with the monitoring profile; without it, say so instead of a 502.
+(monitoring-off) {
+	handle_errors 502 {
+		respond "{args[0]} is not running. It is part of the optional monitoring profile: set COMPOSE_PROFILES=monitoring in .env, then run docker compose up -d." 503
+	}
+}
+
 {$DOMAIN}:9091 {
 	import tls
 	log
 	reverse_proxy prometheus:9090
+	import monitoring-off Prometheus
 }
 
 {$DOMAIN}:3001 {
 	import tls
 	log
 	reverse_proxy grafana:3000
+	import monitoring-off Grafana
 }
 
 # Metrics endpoint for monitoring

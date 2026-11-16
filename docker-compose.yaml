@@ -601,7 +601,9 @@ services:
           cpus: "2"
           memory: 2G
 
+  # Monitoring (prometheus, grafana, postgres_exporter) runs only with the monitoring profile.
   prometheus:
+    profiles: [monitoring]
     image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
     container_name: codeclarity-prometheus
     restart: always
@@ -633,6 +635,7 @@ services:
           memory: 512M
 
   grafana:
+    profiles: [monitoring]
     image: grafana/grafana:13.2.2@sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0
     container_name: codeclarity-grafana
     restart: always
@@ -673,6 +676,7 @@ services:
           memory: 512M
 
   postgres_exporter:
+    profiles: [monitoring]
     image: prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
     container_name: codeclarity-postgres-exporter
     restart: always
