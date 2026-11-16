@@ -190,12 +190,11 @@ services:
     restart: always
     # set shared memory limit when using docker-compose
     shm_size: 128mb
-    # Connection budget (transaction pooling via pgbouncer):
-    #   Server side: pgbouncer default_pool_size(20) × (roles × databases) << max_connections(200).
-    #   Client side: each service/plugin pool is bounded by DB_MAX_OPEN_CONNS (default 15)
-    #   and the API by PG_DB_POOL_MAX (default 10), but pgbouncer multiplexes them so
-    #   replica count no longer drives server connections. max_connections=200 is headroom only.
+    # Connection budget: pgbouncer opens at most max_db_connections(20) × 4 databases = 80
+    # server connections, whatever the replica count; the rest of max_connections is for the
+    # direct ones (migrate, default-analyzer, knowledge-restore, postgres_exporter, superuser).
     entrypoint: *with-secrets
+    # Sized for the 8 GB reference machine; each PG_* setting in .env overrides its value.
     command:
       - docker-entrypoint.sh
       - postgres
@@ -203,6 +202,14 @@ services:
       - config_file=/etc/postgresql/postgresql.conf
       - -c
       - hba_file=/etc/postgresql/pg_hba.conf
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-1GB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-3GB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-16MB}
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:-100}
     configs:
       - source: initdb
         target: /docker-entrypoint-initdb.d/02-create-databases-and-roles.sh
@@ -482,6 +489,7 @@ services:
           memory: 250M
 
   # Keeps the knowledge database current. Runs without an NVD key, at NVD's lower rate.
+  # Low CPU weight and a fixed memory share, so updates never slow analyses or the UI.
   service-knowledge:
     image: codeclarityce/service-knowledge
     restart: always
@@ -490,17 +498,20 @@ services:
     environment:
       <<: *service-env
       PG_DB_USER: cc_knowledge
+      # Keep the Go heap below the container's memory limit.
+      GOMEMLIMIT: 640MiB
     depends_on: *backend-depends
     volumes:
       - secrets-knowledge:/run/codeclarity:ro
+    cpu_shares: 256
     deploy:
       resources:
         limits:
-          cpus: "2"
-          memory: 3G
-        reservations:
           cpus: "1"
-          memory: 2G
+          memory: 768M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
 
   plugin-js-sbom:
     image: codeclarityce/plugin-js-sbom
