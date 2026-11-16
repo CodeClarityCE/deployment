@@ -160,8 +160,8 @@ COMPOSE_PROFILES=monitoring,codeql
 
 An analyzer is shown as unavailable when a plugin it needs is not running, and starting an analysis with it is refused with the same reason, so nobody waits for a failure:
 
-- **Off on this instance:** the plugin belongs to an optional component that is not turned on, such as CodeQL. The analyzer names the component, for example "Needs CodeQL, which is off on this instance." Turn on its profile to make it available.
-- **Temporarily unavailable:** a plugin that should run has stopped, for example because it crashed or is restarting. Users are told to try again shortly, and a warning naming the plugin shows in the logs and the admin views. Once the plugin runs again, its analyzers are available with no other step.
+- **Unavailable (off on this instance):** the plugin belongs to an optional component that is not turned on, such as CodeQL. The reason names the component, for example "Needs CodeQL, which is off on this instance." Turn on its profile to make it available.
+- **Temporarily unavailable:** a plugin that should run has stopped, for example because it crashed or is restarting. The reason names the plugin and says to try again shortly, for example "vuln-finder is temporarily down. Try again shortly." The API logs a warning naming the plugin (`docker compose logs api`), and the organization's analyzers list shows the same state. Once the plugin runs again, its analyzers are available with no other step.
 
 Both are detected live, from whether a plugin is connected to its queue; there is no setting to keep in sync. If a plugin stops while an analysis is waiting on it, the dispatcher fails that analysis a few minutes later, naming the plugin, instead of leaving it to the 24 h recovery limit.
 
