@@ -39,8 +39,8 @@ scrape_configs:
         - 'plugin-php-sbom:8080'
         - 'plugin-license-finder:8080'
         - 'plugin-vuln-finder:8080'
-        - 'plugin-codeql:8080'
         - 'plugin-js-patching:8080'
+        # With the codeql profile on, add 'plugin-codeql:8080'
     metrics_path: '/metrics'
     scrape_interval: 10s
     scrape_timeout: 5s
