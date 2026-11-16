@@ -581,8 +581,10 @@ services:
           cpus: "0.5"
           memory: 250M
 
+  # Optional: runs only with `--profile codeql` (or COMPOSE_PROFILES=codeql), on x86_64 hosts
   plugin-codeql:
     image: codeclarityce/plugin-codeql
+    profiles: ["codeql"]
     platform: linux/amd64 # CodeQL works only on x86 platforms
     restart: always
     entrypoint: *with-secrets
