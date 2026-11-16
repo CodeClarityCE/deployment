@@ -44,6 +44,7 @@ image_values "$compose" >"$tmp/values"
 : >"$tmp/map"
 while IFS= read -r value; do
 	ref=$value prefix="" suffix=""
+	# shellcheck disable=SC2016 # matches a literal ${VAR:-default}
 	if expr "$value" : '\${[A-Za-z_][A-Za-z0-9_]*:-.*}$' >/dev/null; then
 		prefix=${value%%:-*}:-
 		ref=${value#*:-}
