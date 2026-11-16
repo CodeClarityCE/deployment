@@ -58,7 +58,7 @@ The default stack is designed and tested for a **reference machine**: a Raspberr
 - **Docker Engine** with **Docker Compose 2.24 or later**. [Docker install](https://docs.docker.com/engine/install/) | [Compose install](https://docs.docker.com/compose/install/)
 - **Platform:** `linux/amd64` or `linux/arm64`. Every default image runs natively on both. CodeQL is x86_64 only and not supported on arm64 (see [Optional Components](#-optional-components)).
 - **CPU:** at least 4 vCPUs. No container is limited to more than 4 CPUs, and Docker refuses to start a container whose CPU limit is above the host's count.
-- **Memory:** at least 8 GB. The memory limits of the containers that run by default add up to at most 6.5 GiB, which leaves the rest for the host. Analyses run one at a time; further submissions wait in the queue and run in turn.
+- **Memory:** at least 8 GB. The memory limits of the containers that run by default add up to at most 6.5 GiB, which leaves 1.5 GiB of the 8 GiB for the host. Analyses run one at a time; further submissions wait in the queue and run in turn.
 - **Disk:** at least 40 GB, on SSD. About 1.5 GB of compressed images, of which CodeQL is 1.2 GB and is only downloaded with its profile, plus the 0.6 GB knowledge dump image, which stays on disk after the restore. Then the knowledge database, analyses, cached git clones and, with monitoring on, 30 days of metrics, which all grow. 100 GB is recommended.
 - **Network:** inbound 80/tcp and 443/tcp (443/udp for HTTP/3, optional); see [Ports](#-ports) to use others. Outbound to Docker Hub, the git hosts you analyze, the npm registry and the vulnerability sources (NVD, OSV).
 
@@ -174,6 +174,8 @@ COMPOSE_PROFILES=monitoring
 ```
 
 Grafana is then at `https://<DOMAIN>:3001`, as user `admin` with the password printed by the command in [Secrets](#-secrets). While monitoring is off, that address answers `503` with a message saying how to turn it on.
+
+Prometheus does not scrape CodeQL by default. With the `codeql` profile on, add `'plugin-codeql:8080'` to the `codeclarity-plugins` targets in `config/prometheus.yml`.
 
 To turn monitoring off again, remove `COMPOSE_PROFILES=monitoring` and stop its containers; their data stays in its volumes:
 

@@ -101,7 +101,8 @@ x-backend-depends: &backend-depends
   pgbouncer:
     condition: service_started
 
-# Memory limits of the default long-running containers add up to at most 6.5 GiB and no CPU limit is above 4.
+# Memory limits of the default long-running containers add up to at most 6.5 GiB (8 GiB minus 1.5 GiB for
+# the OS) and no CPU limit is above 4.
 # Sized from idle figures, not yet measured under an analysis; each Go service's GOMEMLIMIT is 5/6 of its limit.
 services:
   # One-shot job: fails when .env's CODECLARITY_VERSION is not this file's release, so a Compose
