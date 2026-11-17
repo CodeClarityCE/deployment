@@ -365,11 +365,7 @@ services:
       - target: 443
         published: ${HTTP3_PORT:-443}
         protocol: udp
-      # API
-      - target: 3000
-        published: 3000
-        protocol: tcp
-      # API
+      # Grafana, through Caddy; answers only with the monitoring profile
       - target: 3001
         published: 3001
         protocol: tcp
