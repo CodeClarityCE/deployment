@@ -238,6 +238,7 @@ The knowledge database is restored from the `codeclarityce/knowledge-dump` image
 - Upgrading from a release where monitoring ran by default: monitoring is now off until you turn on its profile (see [Monitoring](#-monitoring)). Its containers keep running after the upgrade until you set the profile or remove them.
 - Upgrading from a release before Postgres was tuned for 8 GB: Postgres now starts with 1 GB of shared buffers, a 3 GB cache size, 16 MB of work memory and at most 100 connections, in place of 128 MB of shared buffers and 200 connections. Settings are not migrated: on a bigger machine, raise them with the `PG_*` settings in `.env` and the `db` memory limit (see [Larger Instances](#-larger-instances)).
 - Upgrading from a release that published port 3000: it is no longer published (nothing answered on it), so any firewall or forwarding rule for 3000 can go.
+- Upgrading from a release where Caddy listed the app's routes: every app path now loads the app, so deep links such as `/tickets` and the ClickUp sign-in callback work, and unknown paths show the app's 404 page. `/api/*` and missing `/assets/*` files still return their own 404.
 - `docker compose down`: stop the stack. Data and secrets stay in their volumes.
 - `docker compose logs -f <service>`: follow a service's logs.
 - `docker compose pull`: download the images again.

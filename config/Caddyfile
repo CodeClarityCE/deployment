@@ -17,32 +17,26 @@ http://{$DOMAIN} {
 
 {$DOMAIN} {
 	import tls
+	log
+	encode zstd gzip
 
 	handle /api/* {
 		uri strip_prefix /api
 		reverse_proxy api:3000
 	}
 
-	log
-
 	root * /srv/app/dist
 
-	rewrite /results* /
-	rewrite /projects* /
-	rewrite /analyses* /
-	rewrite /login* /
-	rewrite /help* /
-	rewrite /orgs* /
-	rewrite /org* /
-	rewrite /signup* /
-	rewrite /password_reset_request* /
-	rewrite /email_action* /
-	rewrite /settings* /
-	rewrite /auth* /
-	rewrite /404* /
+	# A missing chunk stays a 404, so the app reloads a stale page instead of parsing HTML.
+	handle /assets/* {
+		file_server
+	}
 
-	encode zstd gzip
-	file_server
+	# Any other path is a built file, or the app's index page and the Vue router picks the route.
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
 }
 
 {$DOMAIN}:15672 {
