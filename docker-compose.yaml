@@ -56,20 +56,11 @@ x-api-env: &api-env
   ENV: prod
   PORT: "3000"
   PLATFORM_NAME: CodeClarity
-  # Public URLs carry HTTPS_PORT when it is set, so links and OAuth callbacks reach the published port.
+  # Public URLs carry HTTPS_PORT when it is set, so links and callbacks reach the published port.
   WEB_HOST: https://${DOMAIN:-localhost}${HTTPS_PORT:+:${HTTPS_PORT}}
   HOST: https://${DOMAIN:-localhost}${HTTPS_PORT:+:${HTTPS_PORT}}/api
   DOWNLOAD_PATH: /home/codeclarity/private
   REQUIRE_ACCOUNT_VERIFICATION: "true"
-  GITHUB_AUTH_CLIENT_ID: ${GITHUB_AUTH_CLIENT_ID:-}
-  GITHUB_AUTH_CLIENT_SECRET: ${GITHUB_AUTH_CLIENT_SECRET:-}
-  GITHUB_CALLBACK: https://${DOMAIN:-localhost}${HTTPS_PORT:+:${HTTPS_PORT}}/api/auth/github/callback
-  GITHUB_AUTH_CALLBACK: https://${DOMAIN:-localhost}${HTTPS_PORT:+:${HTTPS_PORT}}/auth/github/callback
-  GITLAB_AUTH_CLIENT_ID: ${GITLAB_AUTH_CLIENT_ID:-}
-  GITLAB_AUTH_CLIENT_SECRET: ${GITLAB_AUTH_CLIENT_SECRET:-}
-  GITLAB_AUTH_HOST: ${GITLAB_AUTH_HOST:-https://gitlab.com}
-  GITLAB_CALLBACK: https://${DOMAIN:-localhost}${HTTPS_PORT:+:${HTTPS_PORT}}/api/auth/gitlab/callback
-  GITLAB_AUTH_CALLBACK: https://${DOMAIN:-localhost}${HTTPS_PORT:+:${HTTPS_PORT}}/auth/gitlab/callback
   CLICKUP_CLIENT_ID: ${CLICKUP_CLIENT_ID:-}
   CLICKUP_CLIENT_SECRET: ${CLICKUP_CLIENT_SECRET:-}
   MAIL_HOST: ${MAIL_HOST:-localhost}
