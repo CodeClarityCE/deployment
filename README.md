@@ -60,7 +60,7 @@ The default stack is designed and tested for a **reference machine**: a Raspberr
 - **CPU:** at least 4 vCPUs. No container is limited to more than 4 CPUs, and Docker refuses to start a container whose CPU limit is above the host's count.
 - **Memory:** at least 8 GB. The memory limits of the containers that run by default add up to at most 6.5 GiB, which leaves 1.5 GiB of the 8 GiB for the host. Analyses run one at a time; further submissions wait in the queue and run in turn.
 - **Disk:** at least 40 GB, on SSD. About 1.5 GB of compressed images, of which CodeQL is 1.2 GB and is only downloaded with its profile, plus the 0.6 GB knowledge dump image, which stays on disk after the restore. Then the knowledge database, analyses, cached git clones and, with monitoring on, 30 days of metrics, which all grow. 100 GB is recommended.
-- **Network:** inbound 80/tcp and 443/tcp (443/udp for HTTP/3, optional); see [Ports](#-ports) to use others. Outbound to Docker Hub, the git hosts you analyze, the npm registry and the vulnerability sources (NVD, OSV).
+- **Network:** inbound 80/tcp and 443/tcp (443/udp for HTTP/3, optional), plus 3001/tcp for Grafana with the monitoring profile; see [Ports](#-ports) to use others. Outbound to Docker Hub, the git hosts you analyze, the npm registry and the vulnerability sources (NVD, OSV).
 
 Nothing else is needed on the host: no git, git-lfs, openssl or installer script.
 
@@ -112,7 +112,7 @@ To try a public name without hitting Let's Encrypt's rate limits, set `ACME_CA=h
 
 ## 🔌 Ports
 
-Caddy publishes HTTP on 80 and HTTPS on 443. When one is taken on the host, set another in `.env`, then `docker compose up -d`:
+Caddy publishes HTTP on 80 and HTTPS on 443, and Grafana on 3001, which answers only with the [monitoring](#-monitoring) profile. The API has no port of its own: it is at `https://<DOMAIN>/api`. When 80 or 443 is taken on the host, set another in `.env`, then `docker compose up -d`:
 
 ```bash
 HTTP_PORT=8080
@@ -120,7 +120,7 @@ HTTPS_PORT=8443
 HTTP3_PORT=8443
 ```
 
-The instance is then at `https://<DOMAIN>:8443`, and `http://<DOMAIN>:8080` redirects there. Links in emails and the GitHub and GitLab sign-in callbacks use the same port, so register the callbacks as `https://<DOMAIN>:8443/auth/github/callback` and `https://<DOMAIN>:8443/auth/gitlab/callback`. Leave `HTTPS_PORT` unset for 443: setting it to 443 adds `:443` to those URLs.
+The instance is then at `https://<DOMAIN>:8443`, and `http://<DOMAIN>:8080` redirects there. Links in emails use the same port. Leave `HTTPS_PORT` unset for 443: setting it to 443 adds `:443` to those URLs.
 
 Automatic certificates for a public `DOMAIN` need ports 80 and 443 reachable from the internet as themselves. Behind other ports, use your own certificate (`TLS_CERT` and `TLS_KEY`, see [TLS](#-tls)), or forward 80 and 443 to the published ports.
 
@@ -237,6 +237,9 @@ The knowledge database is restored from the `codeclarityce/knowledge-dump` image
 - Upgrade: replace `docker-compose.yaml` with the new release's, set `CODECLARITY_VERSION` in `.env` to that release, then `docker compose up -d`. Users, analyses and secrets are kept, and the new migrations run first. The stack does not start while `.env` names another release than the Compose file; the `version-check` job's log says which.
 - Upgrading from a release where monitoring ran by default: monitoring is now off until you turn on its profile (see [Monitoring](#-monitoring)). Its containers keep running after the upgrade until you set the profile or remove them.
 - Upgrading from a release before Postgres was tuned for 8 GB: Postgres now starts with 1 GB of shared buffers, a 3 GB cache size, 16 MB of work memory and at most 100 connections, in place of 128 MB of shared buffers and 200 connections. Settings are not migrated: on a bigger machine, raise them with the `PG_*` settings in `.env` and the `db` memory limit (see [Larger Instances](#-larger-instances)).
+- Upgrading from a release that published port 3000: it is no longer published (nothing answered on it), so any firewall or forwarding rule for 3000 can go.
+- Upgrading from a release where Caddy listed the app's routes: every app path now loads the app, so deep links such as `/tickets` and the ClickUp sign-in callback work, and unknown paths show the app's 404 page. `/api/*` and missing `/assets/*` files still return their own 404.
+- Upgrading from a release with GitHub and GitLab sign-in settings: sign-in with GitHub or GitLab is gone (it never worked), so `GITHUB_AUTH_*` and `GITLAB_AUTH_*` in `.env` are unused and can go. GitHub and GitLab integrations, which use access tokens, are unchanged. A user who signed up with GitHub or GitLab signs in with a password once you set one: `docker compose run --rm api create-user --email <their email> --name "First Last" --password '...' --reset-password`.
 - `docker compose down`: stop the stack. Data and secrets stay in their volumes.
 - `docker compose logs -f <service>`: follow a service's logs.
 - `docker compose pull`: download the images again.
