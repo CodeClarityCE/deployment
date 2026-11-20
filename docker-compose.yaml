@@ -183,7 +183,8 @@ services:
     shm_size: 128mb
     # Connection budget: pgbouncer opens at most max_db_connections(20) × 4 databases = 80
     # server connections, whatever the replica count; the rest of max_connections is for the
-    # direct ones (migrate, default-analyzer, knowledge-restore, postgres_exporter, superuser).
+    # direct ones (migrate, default-analyzer, vulnerability-instance-backfill, knowledge-restore,
+    # postgres_exporter, superuser).
     entrypoint: *with-secrets
     # Sized for the 8 GB reference machine; each PG_* setting in .env overrides its value.
     command:
@@ -301,6 +302,22 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # One-shot job: writes the vulnerability instance rows of past analyses that have none,
+  # one analysis at a time, then exits. Connects as the API's role, straight on Postgres.
+  vulnerability-instance-backfill:
+    image: codeclarityce/api
+    command: ["node", "dist/scripts/backfill-vulnerability-instances.js"]
+    restart: "no"
+    environment:
+      <<: *api-env
+      PG_DB_HOST: db
+      PG_DB_PORT: "5432"
+    volumes:
+      - secrets-api:/home/codeclarity/app/env:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   # Also runs `create-user`: docker compose run --rm api create-user --email ... --name ...
   # (password from --password or CREATE_USER_PASSWORD).
   api:
@@ -314,6 +331,8 @@ services:
       migrate:
         condition: service_completed_successfully
       default-analyzer:
+        condition: service_completed_successfully
+      vulnerability-instance-backfill:
         condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
