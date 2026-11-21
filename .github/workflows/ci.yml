@@ -123,11 +123,11 @@ jobs:
           cp "$OUT/env.example" "$RUN/.env"
           compose() { docker compose --project-directory "$RUN" -f "$RUN/docker-compose.yaml" "$@"; }
           compose config --quiet
-          compose up -d default-analyzer
+          compose up -d default-analyzer vulnerability-instance-backfill
           deadline=$(($(date +%s) + 2400))
           while :; do
             bad=$(compose ps -a --format json | jq -rs 'flatten | .[] | select(.State == "exited" and .ExitCode != 0) | .Service')
-            done=$(compose ps -a --format json | jq -rs 'flatten | .[] | select(.Service == "default-analyzer" and .State == "exited" and .ExitCode == 0) | .Service')
+            done=$(compose ps -a --format json | jq -rs '[flatten | .[] | select((.Service == "default-analyzer" or .Service == "vulnerability-instance-backfill") and .State == "exited" and .ExitCode == 0)] | if length == 2 then "yes" else "" end')
             if [[ -n "$bad" ]]; then
               for s in $bad; do echo "::group::logs: $s"; compose logs --no-color --tail=200 "$s"; echo "::endgroup::"; done
               echo "::error::Setup jobs failed: $bad"
@@ -175,6 +175,13 @@ jobs:
 
   # The required check, kept here because called jobs show as "lint / <job>".
   # Fails if any needed job failed or was cancelled; skipped counts as success.
+  # CodeQL on every PR and push; outside ci's needs, so findings never fail ci.
+  codeql:
+    uses: CodeClarityCE/.github/.github/workflows/codeql.yml@v1
+    permissions:
+      contents: read
+      security-events: write
+
   ci:
     needs: [lint, version, shellcheck, release]
     if: always()

@@ -86,7 +86,7 @@ A CI job on an arm64 runner runs the default stack with the knowledge dump and t
    docker compose up -d
    ```
 
-On first start, one-shot setup jobs run before the app starts: `generate-secrets` creates the instance's secrets, the database init script creates the databases and roles, `knowledge-restore` restores the knowledge database from the knowledge dump image, `migrate` applies the migrations, and `default-analyzer` creates the global "Default Analyzer". Nothing prompts and no file is rewritten. If a job fails, the app services stay stopped and the job's error is in `docker compose logs <job>`.
+On first start, one-shot setup jobs run before the app starts: `generate-secrets` creates the instance's secrets, the database init script creates the databases and roles, `knowledge-restore` restores the knowledge database from the knowledge dump image, `migrate` applies the migrations, `default-analyzer` creates the global "Default Analyzer", and `vulnerability-instance-backfill` writes the vulnerability instance rows of past analyses that have none (after an upgrade, so the organization vulnerability list covers existing analyses; it does nothing once every analysis has its rows). Nothing prompts and no file is rewritten. If a job fails, the app services stay stopped and the job's error is in `docker compose logs <job>`.
 
 Running `docker compose up -d` again is always safe: each job finds its work done and does nothing.
 
