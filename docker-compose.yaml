@@ -252,7 +252,7 @@ services:
   # One-shot job: restores knowledge and config from the dump image when knowledge is empty.
   # KNOWLEDGE_DUMP_IMAGE swaps in another dump image.
   knowledge-restore:
-    image: ${KNOWLEDGE_DUMP_IMAGE:-codeclarityce/knowledge-dump:2026-11-16}
+    image: ${KNOWLEDGE_DUMP_IMAGE:-codeclarityce/knowledge-dump:2026-11-21}
     restart: "no"
     entrypoint: *with-secrets
     command: ["sh", "/usr/local/bin/restore-dump.sh", "restore-if-empty"]
