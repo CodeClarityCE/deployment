@@ -1,7 +1,8 @@
 #!/bin/sh
 # Renders the files a deployment release attaches: the Compose file with every image pinned
 # by digest, every config file inlined and the release version set, and .env.example set to
-# that version. Also writes release-notes.md, naming the knowledge dump image and every image.
+# that version. Also writes release-notes.md, naming the knowledge dump image and every image,
+# and copies support-bundle.sh, which operators run next to the Compose file.
 # Fails, writing nothing, when an image's digest cannot be found.
 # Only image references and config files change: ${...} meant for the operator's .env stays.
 #
@@ -16,6 +17,8 @@ case "$version" in
 esac
 compose="$src/docker-compose.yaml"
 [ -f "$compose" ] || { echo "render-release: no $compose" >&2; exit 1; }
+bundle="$src/scripts/support-bundle.sh"
+[ -f "$bundle" ] || { echo "render-release: no $bundle" >&2; exit 1; }
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -132,3 +135,4 @@ mkdir -p "$out"
 cp "$tmp/out.yaml" "$out/docker-compose.yaml"
 cp "$tmp/env" "$out/.env.example"
 cp "$tmp/notes" "$out/release-notes.md"
+cp "$bundle" "$out/support-bundle.sh"

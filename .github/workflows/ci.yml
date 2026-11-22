@@ -4,7 +4,8 @@
 # release (main pushes with CI_RELEASE == 'true' only, in the release environment): skip if the
 # version's tag exists, else render the Compose file with every image pinned by digest and every
 # config inlined, run its setup jobs on the runner (restoring the pinned knowledge dump and
-# applying the migrations), attest both files, then create the GitHub release with them attached.
+# applying the migrations), attest the files, then create the GitHub release with them attached:
+# the Compose file, env.example and support-bundle.sh.
 # The central image workflows build images, so this release job lives here.
 name: CI
 
@@ -145,6 +146,7 @@ jobs:
           subject-path: |
             ${{ steps.render.outputs.out }}/docker-compose.yaml
             ${{ steps.render.outputs.out }}/env.example
+            ${{ steps.render.outputs.out }}/support-bundle.sh
       - name: Create the GitHub release
         if: steps.meta.outputs.exists == 'false'
         env:
@@ -162,13 +164,13 @@ jobs:
           } >"$OUT/notes.md"
           gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Release $VERSION" --notes-file "$OUT/notes.md" --generate-notes --prerelease="$PRERELEASE" \
-            "$OUT/docker-compose.yaml" "$OUT/env.example"
+            "$OUT/docker-compose.yaml" "$OUT/env.example" "$OUT/support-bundle.sh"
           {
             echo "### Released \`$VERSION\`"
             echo "| | |"
             echo "|---|---|"
             echo "| Commit | \`$GITHUB_SHA\` |"
-            echo "| Assets | \`docker-compose.yaml\`, \`env.example\` |"
+            echo "| Assets | \`docker-compose.yaml\`, \`env.example\`, \`support-bundle.sh\` |"
             echo "| Prerelease | $PRERELEASE |"
           } >>"$GITHUB_STEP_SUMMARY"
           cat "$OUT/release-notes.md" >>"$GITHUB_STEP_SUMMARY"

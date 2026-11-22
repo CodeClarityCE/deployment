@@ -78,7 +78,7 @@ A CI job on an arm64 runner runs the default stack with the knowledge dump and t
 
 ## ⚡ Install
 
-1. Download `docker-compose.yaml` and `env.example` from the [latest release](https://github.com/CodeClarityCE/deployment/releases) into an empty directory. Every image in that Compose file is pinned by digest, so every install of a release runs the same images. To check where the files came from: `gh attestation verify docker-compose.yaml -R CodeClarityCE/deployment` (and the same for `env.example`).
+1. Download `docker-compose.yaml` and `env.example` from the [latest release](https://github.com/CodeClarityCE/deployment/releases) into an empty directory. The release also has `support-bundle.sh`, which you run when [reporting a bug](#-reporting-issues). Every image in that Compose file is pinned by digest, so every install of a release runs the same images. To check where the files came from: `gh attestation verify docker-compose.yaml -R CodeClarityCE/deployment` (and the same for `env.example` and `support-bundle.sh`).
 2. Save `env.example` as `.env` (`cp env.example .env`). The release asset is this repository's `.env.example`; GitHub drops the leading dot when it is uploaded, so it downloads as `env.example`. It already sets `CODECLARITY_VERSION` to the release. Set `DOMAIN` to the name the instance is reached at. HTTPS follows it (see [TLS](#-tls)).
 3. Start the stack:
 
@@ -256,7 +256,25 @@ If you'd like to contribute code or documentation, please see [CONTRIBUTING.md](
 
 ## 🐛 Reporting Issues
 
-Please report any issues with the setup process or other problems encountered while using this repository by opening a new issue in this project's GitHub page.
+Report a bug with the [bug report form](https://github.com/CodeClarityCE/codeclarity-dev/issues/new?template=bug_report.yml) and attach a support bundle. The instance never sends data anywhere on its own; the bundle is what tells us how it runs.
+
+In the directory that holds `docker-compose.yaml` and `.env`, with the stack running:
+
+```bash
+sh support-bundle.sh
+```
+
+`support-bundle.sh` is attached to each [release](https://github.com/CodeClarityCE/deployment/releases), next to `docker-compose.yaml`; download the one of the release you run. In a clone of this repository, `make support-bundle` runs the same script. It prints the path of the archive it wrote, `codeclarity-support-<UTC time>.tar.gz`, readable only by you. To write it elsewhere, pass a directory: `sh support-bundle.sh /tmp` (or `make support-bundle OUT=/tmp`).
+
+The archive holds:
+
+- `versions.txt`: the release, the image of each service, Docker, Docker Compose and the host
+- `containers.txt`: every container and its state
+- `config.yaml`: the resolved Compose configuration (`docker compose config`, with `.env` applied)
+- `logs/<service>.log`: each service's error lines of the last 24 hours, at most 200
+- `error-reports.log`: the error reports the web app sent to the API in the last 24 hours, at most 200
+
+Before anything is written, every secret in the `codeclarity_secrets` volume, every setting whose name holds `PASSWORD`, `SECRET`, `TOKEN`, `KEY`, `AUTH`, `CREDENTIAL`, `COOKIE` or `PRIVATE` (in `.env`, the environment and the configuration), private keys, and passwords in URLs are replaced by `[REDACTED]`. If a known secret is still found, no archive is written. Log lines can still name projects, repositories or users, so look the archive over before attaching it. `SUPPORT_BUNDLE_SINCE` (such as `72h`) and `SUPPORT_BUNDLE_LINES` change the window and the number of lines.
 
 ## 📄 License
 
