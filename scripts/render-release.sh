@@ -20,6 +20,9 @@ compose="$src/docker-compose.yaml"
 bundle="$src/scripts/support-bundle.sh"
 [ -f "$bundle" ] || { echo "render-release: no $bundle" >&2; exit 1; }
 
+# The last alpha release: the only one that upgrades to a beta (ADR 0018).
+LAST_ALPHA=v0.0.32-alpha
+
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
@@ -125,6 +128,9 @@ dump=$(cut -f2 "$tmp/map" | sed -n 's/^\${[A-Za-z_][A-Za-z0-9_]*:-\(.*\)}$/\1/; 
 [ "$(echo "$dump" | grep -c .)" = 1 ] || fail "expected one codeclarityce/knowledge-dump image, found: ${dump:-none}"
 {
 	echo "Knowledge dump: \`$dump\`, restored on first start (KNOWLEDGE_DUMP_IMAGE in .env overrides it)."
+	echo
+	echo "Upgrading from an alpha: an instance on an older alpha must first upgrade to $LAST_ALPHA, the last alpha, and let its"
+	echo "setup jobs finish, then upgrade to this release. Otherwise the migrate job stops with an error and leaves that database as it was."
 	echo
 	echo "Images, pinned by digest in \`docker-compose.yaml\`:"
 	echo
