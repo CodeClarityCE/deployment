@@ -35,6 +35,7 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
 - [CodeClarity Deployment Guide](#codeclarity-deployment-guide)
   - [🚀 What is CodeClarity?](#-what-is-codeclarity)
   - [📋 System Requirements](#-system-requirements)
+  - [✅ Support Matrix](#-support-matrix)
   - [⚡ Install](#-install)
   - [👤 Create the First User](#-create-the-first-user)
   - [🔒 TLS](#-tls)
@@ -75,6 +76,19 @@ A CI job on an arm64 runner runs the default stack with the knowledge dump and t
 | UI pages and API calls, p95, during an analysis | under 1 s                                       | pending the first baseline run |
 | Default Analyzer, about 1,000 npm dependencies  | finishes                                        | pending the first baseline run |
 | Analysis time                                   | recorded only; the runner is faster than a Pi 5 | pending the first baseline run |
+
+## ✅ Support Matrix
+
+An instance is supported when it matches every row. Bug reports from other setups are welcome, but fixes for them are not promised.
+
+| Area          | Supported                                                                                                                   | Not supported                                                                                    |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Architecture  | `linux/amd64` and `linux/arm64`, every default image native on both                                                         | other architectures, images run under emulation; CodeQL on arm64                                 |
+| Orchestration | Docker Engine with Docker Compose 2.24 or later, using this release's `docker-compose.yaml` (with your `.env` and profiles) | Kubernetes, Docker Swarm, Podman, Nomad, or running the services without Compose                 |
+| Machine       | the [reference machine](#-system-requirements) as the minimum: 4 vCPUs, 8 GB of memory, SSD storage, or more                | less memory or CPU, or spinning disks                                                            |
+| Releases      | the last two minor releases, each at its latest patch                                                                       | older minor releases, and older patches of a supported minor (upgrade to its latest patch first) |
+
+Releases are numbered `vMAJOR.MINOR.PATCH` with a `-alpha` or `-beta` suffix before 1.0. While every release is `v0.0.x`, they are all one minor line, so only the latest release is supported. Upgrade one release at a time when the release notes say an intermediate step is needed (see [Upgrade and Maintain](#-upgrade-and-maintain)).
 
 ## ⚡ Install
 
@@ -252,7 +266,7 @@ The knowledge database is restored from the `codeclarityce/knowledge-dump` image
 
 ## 🤝 Contributing
 
-If you'd like to contribute code or documentation, please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines on how to do so.
+If you'd like to contribute code or documentation, please see [CONTRIBUTING.md](https://github.com/CodeClarityCE/codeclarity-dev/blob/develop/CONTRIBUTING.md) for guidelines on how to do so.
 
 ## 🐛 Reporting Issues
 
