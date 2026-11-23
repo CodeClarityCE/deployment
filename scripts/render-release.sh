@@ -1,7 +1,8 @@
 #!/bin/sh
 # Renders the files a deployment release attaches: the Compose file with every image pinned
 # by digest, every config file inlined and the release version set, and .env.example set to
-# that version. Also writes release-notes.md, naming the knowledge dump image and every image.
+# that version. Also writes release-notes.md, naming the knowledge dump image and every image,
+# and copies support-bundle.sh, which operators run next to the Compose file.
 # Fails, writing nothing, when an image's digest cannot be found.
 # Only image references and config files change: ${...} meant for the operator's .env stays.
 #
@@ -16,6 +17,11 @@ case "$version" in
 esac
 compose="$src/docker-compose.yaml"
 [ -f "$compose" ] || { echo "render-release: no $compose" >&2; exit 1; }
+bundle="$src/scripts/support-bundle.sh"
+[ -f "$bundle" ] || { echo "render-release: no $bundle" >&2; exit 1; }
+
+# The last alpha release: the only one that upgrades to a beta (ADR 0018).
+LAST_ALPHA=v0.0.32-alpha
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -123,6 +129,9 @@ dump=$(cut -f2 "$tmp/map" | sed -n 's/^\${[A-Za-z_][A-Za-z0-9_]*:-\(.*\)}$/\1/; 
 {
 	echo "Knowledge dump: \`$dump\`, restored on first start (KNOWLEDGE_DUMP_IMAGE in .env overrides it)."
 	echo
+	echo "Upgrading from an alpha: an instance on an older alpha must first upgrade to $LAST_ALPHA, the last alpha, and let its"
+	echo "setup jobs finish, then upgrade to this release. Otherwise the migrate job stops with an error and leaves that database as it was."
+	echo
 	echo "Images, pinned by digest in \`docker-compose.yaml\`:"
 	echo
 	cut -f2 "$tmp/map" | sed 's/^\${[A-Za-z_][A-Za-z0-9_]*:-\(.*\)}$/\1/; s/.*/- `&`/'
@@ -132,3 +141,4 @@ mkdir -p "$out"
 cp "$tmp/out.yaml" "$out/docker-compose.yaml"
 cp "$tmp/env" "$out/.env.example"
 cp "$tmp/notes" "$out/release-notes.md"
+cp "$bundle" "$out/support-bundle.sh"
