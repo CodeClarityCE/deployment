@@ -245,6 +245,8 @@ Keep `PG_SHARED_BUFFERS` at about half of the `db` memory limit, and `PG_MAX_CON
 
 The knowledge database is restored from the `codeclarityce/knowledge-dump` image on first start, and `service-knowledge` keeps it current. It runs without an NVD API key, at NVD's lower rate; for faster updates, [request a key](https://nvd.nist.gov/developers/request-an-api-key), set `NVD_API_KEY` in `.env` and run `docker compose up -d`.
 
+It updates every six hours. To update now, run `docker compose run --rm service-knowledge ./plugin -knowledge -action update` (`make knowledge-update` in a clone of this repository). Use `-action update-osv` (`make knowledge-update ACTION=update-osv`) to update only the OSV advisories. If a scheduled update is running, the command exits with an error; run it again once that update is done.
+
 ## 🔄 Upgrade and Maintain
 
 - `docker compose up -d`: install, upgrade or start. Migrations run once, before the API and services start.
