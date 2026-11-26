@@ -41,6 +41,7 @@ CodeClarity is a **powerful, open-source security analysis platform** that serve
   - [🔒 TLS](#-tls)
   - [🔌 Ports](#-ports)
   - [🔐 Secrets](#-secrets)
+  - [🦊 Self-Hosted GitLab](#-self-hosted-gitlab)
   - [🧩 Optional Components](#-optional-components)
   - [📈 Monitoring](#-monitoring)
   - [📏 Larger Instances](#-larger-instances)
@@ -150,6 +151,18 @@ docker compose run --rm --no-deps --entrypoint cat grafana /run/codeclarity/admi
 
 Back up the `codeclarity_secrets` volume with the database: a restored database without its secrets locks the services out.
 
+## 🦊 Self-Hosted GitLab
+
+A GitLab integration's instance URL must use `https` and resolve to a public address. The API checks it when the integration is linked or its token is replaced, and again on every call to the instance (token checks, repository sync, project import), connecting only to the address it checked. The downloader reads the same setting for the repositories it clones. This stops a user from making CodeClarity call an internal address with a GitLab URL.
+
+A GitLab on your private network, or served over plain `http`, needs its host listed in `.env`, then `docker compose up -d`:
+
+```bash
+GITLAB_ALLOWED_PRIVATE_HOSTS=gitlab.internal.example,10.0.0.5
+```
+
+Entries are host names or IP addresses, comma-separated, matched against the host of the instance URL (without the port). Only list hosts you run: a listed host may resolve to any address. Empty by default.
+
 ## 🧩 Optional Components
 
 Two components are off by default, so a small machine spends its memory on analyses. Each has a Compose profile that turns it on:
@@ -257,6 +270,7 @@ It updates every six hours. To update now, run `docker compose run --rm service-
 - Upgrading from a release that published port 3000: it is no longer published (nothing answered on it), so any firewall or forwarding rule for 3000 can go.
 - Upgrading from a release where Caddy listed the app's routes: every app path now loads the app, so deep links such as `/tickets` and the ClickUp sign-in callback work, and unknown paths show the app's 404 page. `/api/*` and missing `/assets/*` files still return their own 404.
 - Upgrading from a release with GitHub and GitLab sign-in settings: sign-in with GitHub or GitLab is gone (it never worked), so `GITHUB_AUTH_*` and `GITLAB_AUTH_*` in `.env` are unused and can go. GitHub and GitLab integrations, which use access tokens, are unchanged. A user who signed up with GitHub or GitLab signs in with a password once you set one: `docker compose run --rm api create-user --email <their email> --name "First Last" --password '...' --reset-password`.
+- Upgrading from a release that accepted any GitLab instance URL: an integration on a private address, or on plain `http`, now fails with `IntegrationInstanceUrlNotAllowed` until its host is listed in `GITLAB_ALLOWED_PRIVATE_HOSTS` (see [Self-Hosted GitLab](#-self-hosted-gitlab)). GitLab instances on public `https` addresses, such as gitlab.com, need nothing.
 - `docker compose down`: stop the stack. Data and secrets stay in their volumes.
 - `docker compose logs -f <service>`: follow a service's logs.
 - `docker compose pull`: download the images again.
