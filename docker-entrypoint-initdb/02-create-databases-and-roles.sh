@@ -25,6 +25,7 @@ done
 # Uses psql -v variable binding (:'var') to avoid SQL injection from passwords
 CC_API_PASSWORD="${CC_API_PASSWORD:-$POSTGRES_PASSWORD}"
 CC_SERVICE_PASSWORD="${CC_SERVICE_PASSWORD:-$POSTGRES_PASSWORD}"
+CC_FOLLOWER_PASSWORD="${CC_FOLLOWER_PASSWORD:-$POSTGRES_PASSWORD}"
 CC_PLUGIN_PASSWORD="${CC_PLUGIN_PASSWORD:-$POSTGRES_PASSWORD}"
 CC_KNOWLEDGE_PASSWORD="${CC_KNOWLEDGE_PASSWORD:-$POSTGRES_PASSWORD}"
 CC_EXPORTER_PASSWORD="${CC_EXPORTER_PASSWORD:-$POSTGRES_PASSWORD}"
@@ -32,14 +33,18 @@ CC_EXPORTER_PASSWORD="${CC_EXPORTER_PASSWORD:-$POSTGRES_PASSWORD}"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
   -v api_pass="$CC_API_PASSWORD" \
   -v service_pass="$CC_SERVICE_PASSWORD" \
+  -v follower_pass="$CC_FOLLOWER_PASSWORD" \
   -v plugin_pass="$CC_PLUGIN_PASSWORD" \
   -v knowledge_pass="$CC_KNOWLEDGE_PASSWORD" \
   -v exporter_pass="$CC_EXPORTER_PASSWORD" <<-'EOSQL'
     -- API role: read/write on codeclarity, read on knowledge, read/write on plugins/config
     CREATE ROLE cc_api LOGIN PASSWORD :'api_pass';
 
-    -- Service role: used by dispatcher, downloader, notifier, scheduler, follower
+    -- Service role: used by dispatcher, downloader, notifier, scheduler
     CREATE ROLE cc_service LOGIN PASSWORD :'service_pass';
+
+    -- Package follower role: its table grants come from the migrate job, once the tables exist
+    CREATE ROLE cc_follower LOGIN PASSWORD :'follower_pass';
 
     -- Plugin role: used by analysis plugins (js-sbom, vuln-finder, etc.)
     CREATE ROLE cc_plugin LOGIN PASSWORD :'plugin_pass';
@@ -52,18 +57,18 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
     GRANT pg_read_all_stats TO cc_exporter;
 
     -- CONNECT privileges per database
-    -- cc_knowledge only connects (the shared service base pings every database); it gets no table access here.
-    GRANT CONNECT ON DATABASE codeclarity TO cc_api, cc_service, cc_plugin, cc_knowledge, cc_exporter;
-    GRANT CONNECT ON DATABASE knowledge TO cc_api, cc_service, cc_plugin, cc_knowledge, cc_exporter;
-    GRANT CONNECT ON DATABASE plugins TO cc_api, cc_service, cc_plugin, cc_knowledge;
-    GRANT CONNECT ON DATABASE config TO cc_api, cc_service, cc_plugin, cc_knowledge;
+    -- cc_knowledge and cc_follower connect everywhere because the shared service base pings every database.
+    GRANT CONNECT ON DATABASE codeclarity TO cc_api, cc_service, cc_follower, cc_plugin, cc_knowledge, cc_exporter;
+    GRANT CONNECT ON DATABASE knowledge TO cc_api, cc_service, cc_follower, cc_plugin, cc_knowledge, cc_exporter;
+    GRANT CONNECT ON DATABASE plugins TO cc_api, cc_service, cc_follower, cc_plugin, cc_knowledge;
+    GRANT CONNECT ON DATABASE config TO cc_api, cc_service, cc_follower, cc_plugin, cc_knowledge;
 EOSQL
 
 # Grant table-level permissions on codeclarity database
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "codeclarity" <<-EOSQL
     REVOKE ALL ON SCHEMA public FROM PUBLIC;
     GRANT USAGE, CREATE ON SCHEMA public TO cc_api, cc_service;
-    GRANT USAGE ON SCHEMA public TO cc_plugin;
+    GRANT USAGE ON SCHEMA public TO cc_plugin, cc_follower;
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO cc_api, cc_service;
     GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO cc_plugin;
     GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO cc_api, cc_service, cc_plugin;
@@ -80,7 +85,7 @@ EOSQL
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "knowledge" <<-EOSQL
     REVOKE ALL ON SCHEMA public FROM PUBLIC;
     GRANT USAGE, CREATE ON SCHEMA public TO cc_api, cc_service, cc_plugin, cc_knowledge;
-    GRANT USAGE ON SCHEMA public TO cc_exporter;
+    GRANT USAGE ON SCHEMA public TO cc_exporter, cc_follower;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO cc_api, cc_service, cc_plugin;
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO cc_knowledge;
     GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO cc_knowledge;
@@ -121,7 +126,7 @@ EOSQL
 
 # --- pgbouncer auth_query support (transaction-pooling connection pooler) ---
 # pgbouncer authenticates every application role (cc_api, cc_service, cc_plugin,
-# cc_knowledge) by looking up its SCRAM secret via a SECURITY DEFINER function,
+# cc_follower, cc_knowledge) by looking up its SCRAM secret via a SECURITY DEFINER function,
 # so we don't have to maintain a userlist of every role. Only the dedicated
 # low-privilege "pgbouncer_auth" role is in pgbouncer's userlist.
 PGBOUNCER_AUTH_PASSWORD="${PGBOUNCER_AUTH_PASSWORD:-$POSTGRES_PASSWORD}"
