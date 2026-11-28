@@ -78,7 +78,7 @@ postgres_cert() { server_cert "$1" postgres.key db "DNS:db,DNS:pgbouncer,DNS:loc
 rabbitmq_cert() { server_cert "$1" rabbitmq.key rabbitmq "DNS:rabbitmq,DNS:codeclarity,DNS:localhost,IP:127.0.0.1"; }
 jwt_public() { openssl ec -in "$store/jwt_private.pem" -pubout -out "$1" 2>/dev/null; }
 
-for name in postgres cc_api cc_service cc_plugin cc_knowledge cc_exporter pgbouncer_auth \
+for name in postgres cc_api cc_service cc_follower cc_plugin cc_knowledge cc_exporter pgbouncer_auth \
 	rabbitmq cookie_secret grafana_admin; do
 	once "${name}_password" password
 done
@@ -118,12 +118,13 @@ env_file() {
 }
 
 umask 022
-for view in db pgbouncer rabbitmq knowledge-restore migrate api service plugin knowledge grafana exporter; do
+for view in db pgbouncer rabbitmq knowledge-restore migrate api service follower plugin knowledge grafana exporter; do
 	copy "$view/ca.crt" ca.crt
 done
 
 env_file db/env "POSTGRES_PASSWORD=$(secret postgres)" "CC_API_PASSWORD=$(secret cc_api)" \
-	"CC_SERVICE_PASSWORD=$(secret cc_service)" "CC_PLUGIN_PASSWORD=$(secret cc_plugin)" \
+	"CC_SERVICE_PASSWORD=$(secret cc_service)" "CC_FOLLOWER_PASSWORD=$(secret cc_follower)" \
+	"CC_PLUGIN_PASSWORD=$(secret cc_plugin)" \
 	"CC_KNOWLEDGE_PASSWORD=$(secret cc_knowledge)" "CC_EXPORTER_PASSWORD=$(secret cc_exporter)" \
 	"PGBOUNCER_AUTH_PASSWORD=$(secret pgbouncer_auth)"
 for view in db pgbouncer; do
@@ -168,12 +169,13 @@ copy rabbitmq/server.key rabbitmq.key 600
 chown "$RABBITMQ_OWNER" "$dir/rabbitmq/server.key"
 
 env_file knowledge-restore/env "POSTGRES_PASSWORD=$(secret postgres)"
-env_file migrate/.env.prod "PG_DB_ADMIN_PASSWORD=$(secret postgres)"
+# migrate creates the follower's role on an install the init script ran on before it existed.
+env_file migrate/.env.prod "PG_DB_ADMIN_PASSWORD=$(secret postgres)" "PG_FOLLOWER_PASSWORD=$(secret cc_follower)"
 env_file api/.env.prod "PG_DB_PASSWORD=$(secret cc_api)" "AMQP_PASSWORD=$(secret rabbitmq)" \
 	"COOKIE_SECRET=$(secret cookie_secret)"
 copy api-jwt/private.pem jwt_private.pem
 copy api-jwt/public.pem jwt_public.pem
-for role in service plugin knowledge; do
+for role in service follower plugin knowledge; do
 	env_file "$role/env" "PG_DB_PASSWORD=$(secret "cc_$role")" "AMQP_PASSWORD=$(secret rabbitmq)"
 done
 copy grafana/admin_password grafana_admin_password

@@ -137,6 +137,7 @@ services:
       - secrets-api:/secrets/api
       - secrets-api-jwt:/secrets/api-jwt
       - secrets-service:/secrets/service
+      - secrets-follower:/secrets/follower
       - secrets-plugin:/secrets/plugin
       - secrets-knowledge:/secrets/knowledge
       - secrets-grafana:/secrets/grafana
@@ -442,11 +443,13 @@ services:
     command: ["./plugin"]
     environment:
       <<: *service-env
+      # Its own role: the only service that writes the package metadata licences and outdated results come from.
+      PG_DB_USER: cc_follower
       GOMEMLIMIT: 160MiB
     depends_on: *backend-depends
     volumes:
       - projects:/private
-      - secrets-service:/run/codeclarity:ro
+      - secrets-follower:/run/codeclarity:ro
     deploy:
       resources:
         limits:
@@ -756,6 +759,7 @@ volumes:
   secrets-api:
   secrets-api-jwt:
   secrets-service:
+  secrets-follower:
   secrets-plugin:
   secrets-knowledge:
   secrets-grafana:
